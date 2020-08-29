@@ -21,7 +21,7 @@ distance_reference_length: 1.4  #1.5
 toward_goal_k1_xy: 4.0 #2.0
 toward_goal_k1_z: 4.0  #2.0
 less_variation_k2_xy: 1.0
-less_variation_k2_z: 3.5 
+less_variation_k2_z: 1.0 
 v_max_at_goal_ori: 0.3 #% 0.3 m/s, just reference for goal velocity, but important
 
 collision_threshold_static: 0.55

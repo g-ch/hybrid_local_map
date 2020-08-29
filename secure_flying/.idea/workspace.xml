@@ -2,83 +2,83 @@
 <project version="4">
   <component name="CMakeRunConfigurationManager" shouldGenerate="true" shouldDeleteObsolete="true">
     <generated>
-      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="roscpp_generate_messages_py" />
       <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="tf_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_lisp" />
       <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="std_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="actionlib_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="gtest" />
       <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_cpp" />
       <config projectName="secure_flying" targetName="tf_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="std_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="std_srvs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="display_costs" />
-      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="roscpp_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="roscpp_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="std_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="std_srvs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="tf_generate_messages_py" />
-      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="tf_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="std_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="actionlib_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="download_extra_data" />
-      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="gtest_main" />
-      <config projectName="secure_flying" targetName="tf_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="tests" />
-      <config projectName="secure_flying" targetName="roscpp_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="actionlib_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="clean_test_results" />
       <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="std_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="std_srvs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="tf_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="gtest_main" />
+      <config projectName="secure_flying" targetName="local_planning_dynamic_gradient_sample" />
+      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="tf_generate_messages_py" />
+      <config projectName="secure_flying" targetName="roscpp_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="tf_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="std_srvs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="gmock_main" />
+      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="run_tests" />
+      <config projectName="secure_flying" targetName="std_srvs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="download_extra_data" />
+      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_cpp" />
       <config projectName="secure_flying" targetName="doxygen" />
       <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="roscpp_generate_messages_py" />
-      <config projectName="secure_flying" targetName="actionlib_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_cpp" />
-      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="local_planning_dynamic_synchronization" />
-      <config projectName="secure_flying" targetName="gmock" />
-      <config projectName="secure_flying" targetName="clean_test_results" />
-      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="std_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="actionlib_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="roscpp_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_lisp" />
       <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="gtest" />
-      <config projectName="secure_flying" targetName="gmock_main" />
-      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_py" />
-      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="actionlib_generate_messages_py" />
-      <config projectName="secure_flying" targetName="std_srvs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="actionlib_generate_messages_cpp" />
       <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="sensor_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="std_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="roscpp_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="tf2_msgs_generate_messages_nodejs" />
       <config projectName="secure_flying" targetName="std_srvs_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="actionlib_generate_messages_nodejs" />
-      <config projectName="secure_flying" targetName="std_msgs_generate_messages_nodejs" />
+      <config projectName="secure_flying" targetName="actionlib_generate_messages_py" />
+      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="tests" />
       <config projectName="secure_flying" targetName="geometry_msgs_generate_messages_lisp" />
-      <config projectName="secure_flying" targetName="std_msgs_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="gazebo_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="std_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="display_costs" />
       <config projectName="secure_flying" targetName="roscpp_generate_messages_eus" />
-      <config projectName="secure_flying" targetName="run_tests" />
-      <config projectName="secure_flying" targetName="std_srvs_generate_messages_py" />
       <config projectName="secure_flying" targetName="local_planning_dynamic" />
+      <config projectName="secure_flying" targetName="gmock" />
+      <config projectName="secure_flying" targetName="trajectory_msgs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="std_srvs_generate_messages_py" />
+      <config projectName="secure_flying" targetName="actionlib_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="mav_msgs_generate_messages_lisp" />
+      <config projectName="secure_flying" targetName="tf_generate_messages_cpp" />
+      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="actionlib_generate_messages_eus" />
+      <config projectName="secure_flying" targetName="rosgraph_msgs_generate_messages_nodejs" />
     </generated>
   </component>
   <component name="CMakeSettings" AUTO_RELOAD="true">
@@ -88,7 +88,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="d039b343-f42a-46d4-a044-a76654ebc463" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/../ewok_ring_buffer/include/ewok/ed_nor_ring_buffer.h" beforeDir="false" afterPath="$PROJECT_DIR$/../ewok_ring_buffer/include/ewok/ed_nor_ring_buffer.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cfg/setting.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/cfg/setting.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -285,7 +288,7 @@
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="local_planning_dynamic_synchronization" type="CMakeRunConfiguration" factoryName="Application" PASS_PARENT_ENVS_2="true" PROJECT_NAME="secure_flying" TARGET_NAME="local_planning_dynamic_synchronization" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="secure_flying" RUN_TARGET_NAME="local_planning_dynamic_synchronization">
+    <configuration name="local_planning_dynamic_gradient_sample" type="CMakeRunConfiguration" factoryName="Application" PASS_PARENT_ENVS_2="true" PROJECT_NAME="secure_flying" TARGET_NAME="local_planning_dynamic_gradient_sample" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="secure_flying" RUN_TARGET_NAME="local_planning_dynamic_gradient_sample">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
@@ -556,7 +559,7 @@
       <item itemvalue="CMake Application.gtest" />
       <item itemvalue="CMake Application.gtest_main" />
       <item itemvalue="CMake Application.local_planning_dynamic" />
-      <item itemvalue="CMake Application.local_planning_dynamic_synchronization" />
+      <item itemvalue="CMake Application.local_planning_dynamic_gradient_sample" />
       <item itemvalue="CMake Application.mav_msgs_generate_messages_cpp" />
       <item itemvalue="CMake Application.mav_msgs_generate_messages_eus" />
       <item itemvalue="CMake Application.mav_msgs_generate_messages_lisp" />
@@ -651,6 +654,7 @@
       <workItem from="1589882302582" duration="9903000" />
       <workItem from="1589944117545" duration="1546000" />
       <workItem from="1589952737334" duration="6367000" />
+      <workItem from="1598670710979" duration="17464000" />
     </task>
     <servers />
   </component>
@@ -671,62 +675,10 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
-    <state x="2700" y="297" key="FileChooserDialogImpl" timestamp="1589884793261">
-      <screen x="1920" y="0" width="1920" height="1080" />
+    <state x="2111" y="369" width="1508" height="889" maximized="true" key="dock-window-1" timestamp="1598684584668">
+      <screen x="1920" y="404" width="1920" height="1080" />
     </state>
-    <state x="2700" y="297" key="FileChooserDialogImpl/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589884793261" />
-    <state width="1809" height="211" key="GridCell.Tab.0.bottom" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="183" key="GridCell.Tab.0.bottom/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836369" />
-    <state width="1809" height="211" key="GridCell.Tab.0.bottom/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="326" key="GridCell.Tab.0.bottom/65.24.1855.1056@65.24.1855.1056" timestamp="1586765679790" />
-    <state width="1809" height="198" key="GridCell.Tab.0.bottom/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516755" />
-    <state width="1809" height="211" key="GridCell.Tab.0.center" timestamp="1589938959765">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="183" key="GridCell.Tab.0.center/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836369" />
-    <state width="1809" height="211" key="GridCell.Tab.0.center/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959765" />
-    <state width="1809" height="326" key="GridCell.Tab.0.center/65.24.1855.1056@65.24.1855.1056" timestamp="1586765679789" />
-    <state width="1809" height="198" key="GridCell.Tab.0.center/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516754" />
-    <state width="1809" height="211" key="GridCell.Tab.0.left" timestamp="1589938959765">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="183" key="GridCell.Tab.0.left/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836368" />
-    <state width="1809" height="211" key="GridCell.Tab.0.left/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959765" />
-    <state width="1809" height="326" key="GridCell.Tab.0.left/65.24.1855.1056@65.24.1855.1056" timestamp="1586765679789" />
-    <state width="1809" height="198" key="GridCell.Tab.0.left/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516754" />
-    <state width="1809" height="211" key="GridCell.Tab.0.right" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="183" key="GridCell.Tab.0.right/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836369" />
-    <state width="1809" height="211" key="GridCell.Tab.0.right/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="326" key="GridCell.Tab.0.right/65.24.1855.1056@65.24.1855.1056" timestamp="1586765679790" />
-    <state width="1809" height="198" key="GridCell.Tab.0.right/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516754" />
-    <state width="1809" height="211" key="GridCell.Tab.1.bottom" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="107" key="GridCell.Tab.1.bottom/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836359" />
-    <state width="1809" height="211" key="GridCell.Tab.1.bottom/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="198" key="GridCell.Tab.1.bottom/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516755" />
-    <state width="1809" height="211" key="GridCell.Tab.1.center" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="107" key="GridCell.Tab.1.center/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836359" />
-    <state width="1809" height="211" key="GridCell.Tab.1.center/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="198" key="GridCell.Tab.1.center/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516755" />
-    <state width="1809" height="211" key="GridCell.Tab.1.left" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="107" key="GridCell.Tab.1.left/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836359" />
-    <state width="1809" height="211" key="GridCell.Tab.1.left/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="198" key="GridCell.Tab.1.left/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516755" />
-    <state width="1809" height="211" key="GridCell.Tab.1.right" timestamp="1589938959766">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1809" height="107" key="GridCell.Tab.1.right/1920.0.1920.1080/65.24.1855.1056@1920.0.1920.1080" timestamp="1586328836359" />
-    <state width="1809" height="211" key="GridCell.Tab.1.right/65.24.1855.1056/1920.0.1920.1080@1920.0.1920.1080" timestamp="1589938959766" />
-    <state width="1809" height="198" key="GridCell.Tab.1.right/65.24.3775.1056@65.24.3775.1056" timestamp="1586264516755" />
+    <state x="2111" y="369" width="1508" height="889" maximized="true" key="dock-window-1/1920.404.1920.1080/65.24.1855.1056@65.24.1855.1056" timestamp="1598684584668" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

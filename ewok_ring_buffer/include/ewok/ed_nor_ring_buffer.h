@@ -354,9 +354,44 @@ class EuclideanDistanceNormalRingBuffer
         return all_safe;
     }
 
+
+    bool collision_checking_no_fence_min_dist(Eigen::Vector3f *traj_points, int Num, float &min_dist) {
+        min_dist = 1000.f;
+        bool far_from_obstacles = true;
+
+        // Set first late checked point
+        Vector3i traj_point_idx_last;
+        Vector3 traj_point_last = traj_points[1].template cast<_Scalar>();
+        distance_buffer_.getIdx(traj_point_last, traj_point_idx_last);
+        float distance_last_point;
+        if (distance_buffer_.insideVolume(traj_point_idx_last)){
+            distance_last_point = distance_buffer_.at(traj_point_idx_last);
+            if(distance_last_point < min_dist){
+                min_dist = distance_last_point;
+            }
+        }
+        for (int i = 2; i < Num; i+=1) {
+            Vector3 traj_point = traj_points[i].template cast<_Scalar>();
+            Vector3i traj_point_idx;
+
+            distance_buffer_.getIdx(traj_point, traj_point_idx);
+
+            if (distance_buffer_.insideVolume(traj_point_idx)) {  //if inside
+                float distance_this = distance_buffer_.at(traj_point_idx);
+                if(distance_this < min_dist){
+                    min_dist = distance_this;
+                }
+                if (distance_this < distance_last_point) {
+                    far_from_obstacles = false;
+                }
+                distance_last_point = distance_this;
+            }
+        }
+        return far_from_obstacles;
+    }
+
     int collision_checking_with_fence(Eigen::Vector3f *traj_points, int Num, _Scalar threshold, Eigen::Vector3d init_position, float max_height=120.f, float xy_max=10000.f) {
         int all_safe = 1;
-        
 
         //Check the last point in the path first
         Vector3i traj_point_idx_the_last_point;
@@ -419,6 +454,61 @@ class EuclideanDistanceNormalRingBuffer
         }
 //        std::cout << "Num=" << Num << std::endl;
         return all_safe;
+    }
+
+
+    bool collision_checking_with_fence_min_dist(Eigen::Vector3f *traj_points, int Num, float &min_dist, Eigen::Vector3d init_position, float max_height=120.f, float xy_max=10000.f) {
+        min_dist = 1000.f;
+        bool far_from_obstacles = true;
+
+        // Set first late checked point
+        Vector3i traj_point_idx_last;
+        Vector3 traj_point_last = traj_points[1].template cast<_Scalar>();
+        distance_buffer_.getIdx(traj_point_last, traj_point_idx_last);
+        float distance_last_point;
+        if (distance_buffer_.insideVolume(traj_point_idx_last)){
+            distance_last_point = distance_buffer_.at(traj_point_idx_last);
+            if(distance_last_point < min_dist){
+                min_dist = distance_last_point;
+            }
+        }
+        for (int i = 2; i < Num; i+=1) {
+            Vector3 traj_point = traj_points[i].template cast<_Scalar>();
+            Vector3i traj_point_idx;
+
+            if(fabs(traj_point(0)-init_position(0)) > xy_max && fabs(traj_point(0)-init_position(0)) > fabs(traj_point_last[0]-init_position(0))){
+                min_dist = 0;
+                far_from_obstacles = false;
+                break;
+            }else if(fabs(traj_point(1)-init_position(1)) > xy_max && fabs(traj_point(1)-init_position(1)) > fabs(traj_point_last[1]-init_position(1))){
+                min_dist = 0;
+                far_from_obstacles = false;
+                break;
+            }else if(traj_point(2)-init_position(2) > max_height && traj_point[2] > traj_point_last[2]){  /// Height limitation
+                min_dist = 0;
+                far_from_obstacles = false;
+                break;
+            }else if(traj_point(2) - init_position(2) < -0.6f){
+                min_dist = 0;
+                far_from_obstacles = false;
+                break;
+            }
+
+            distance_buffer_.getIdx(traj_point, traj_point_idx);
+            if (distance_buffer_.insideVolume(traj_point_idx)) {  //if inside
+                float distance_this = distance_buffer_.at(traj_point_idx);
+
+                if(distance_this < min_dist){
+                    min_dist = distance_this;
+                }
+                if (distance_this < distance_last_point) {
+                    far_from_obstacles = false;
+                }
+                distance_last_point = distance_this;
+            }
+        }
+
+        return far_from_obstacles;
     }
 
     Vector3i get_rgb_edf(float x, float y, float z)
