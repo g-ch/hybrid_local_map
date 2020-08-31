@@ -122,11 +122,9 @@ ros::Publisher current_marker_pub;
 ros::Publisher cloud2_pub, cloud_edf_pub, goal_pub;
 ros::Publisher map_center_pub;
 
-ros::Publisher cmd_vel_pub; // add on 17 Sept.
 ros::Publisher head_cmd_pub; // add on 9 Sept.
 ros::Publisher motor_pub;
 ros::Publisher pva_pub;  //add on 20 Aug. 2020
-
 
 ros::Publisher sim_trajectory_pub; // add on 7 Jan. 2020
 
@@ -181,6 +179,8 @@ Eigen::Vector3d *send_traj_buffer_a;
 int send_buffer_size = 0;
 int send_buffer_size_max;
 
+double max_sample_delt_angle = 1.57;
+
 /*** Global variables for rotating head ***/
 Eigen::VectorXf _direction_update_buffer; // Range [0, 1]
 float heading_resolution;
@@ -207,8 +207,6 @@ ros::Publisher cost_head_final_pub;
 /** Declaration of functions**/
 
 void sendMotorCommands(double yaw);
-
-void simTrackPose(float sp_x, float sp_y, float sp_z, float sp_yaw);
 
 void setPointSendCallback();
 
@@ -323,7 +321,6 @@ struct pva_table {
 };
 
 pva_table *trajectory_time_table = (pva_table*)malloc(sizeof(pva_table));
-bool table_initialized = false;
 
 /***************************************************/
 double getHeadingYawFromSeq(int seq)
@@ -505,7 +502,6 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
         pos_queue.pop();
     }
 
-
     // Add the rotation of head
     Eigen::Quaternionf axis_motor;
     axis_motor.w() = cos(motor_yaw/2.0);
@@ -624,7 +620,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     }
 
      Eigen::Vector3f cube_size_to_remove_uav;
-     cube_size_to_remove_uav << 0.6, 0.6, 0.6;
+     cube_size_to_remove_uav << 1.0, 1.0, 1.2;
      Eigen::Vector3f uav_position;
      uav_position << p0(0), p0(1), p0(2);
      ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_uav_cube;
@@ -732,7 +728,7 @@ void cloudPubCallback(const ros::TimerEvent& e)
  * 2. The minimum distance between the path and obstacles is larger than dist min or
  *    the path is leading to a way far from obstacles.
  * */
-bool generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p0, const Eigen::Vector3d &v0, const Eigen::Vector3d &a0, const double yaw0, const double theta_h,
+int generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p0, const Eigen::Vector3d &v0_ori, const Eigen::Vector3d &a0_ori, const double yaw0, const double theta_h,
                                                          const double theta_v, const Eigen::Vector3d &goal, const double path_length, const double v_final, const double delt_t, const double allow_min_dist,
                                                          Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t, double &min_dist)
 {
@@ -749,24 +745,30 @@ bool generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &
 
     Eigen::Vector3d af = Eigen::Vector3d::Zero();
 
-    double a_limit = MAX_A;
-    double v_limit = MAX_V_XY;
+    Eigen::Vector3d v0 = v0_ori;
+    Eigen::Vector3d a0 = a0_ori;
 
-    double T1, T2, T3, T;
-
-    if (v0.cwiseAbs().maxCoeff() > v_limit || a0.cwiseAbs().maxCoeff() > a_limit || !table_initialized) {
-        ROS_ERROR_THROTTLE(1, "a_limit or v_limit in local planning is large than the values in the loaded table!");
-        return false;
-    } else {
-        T1 = trajectory_time_table->query_pva_table(delt_x, v0(0), vf(0), a0(0));
-        T2 = trajectory_time_table->query_pva_table(delt_y, v0(0), vf(0), a0(0));
-        T3 = trajectory_time_table->query_pva_table(delt_z, v0(0), vf(0), a0(0));
-
-        if (T1 == -1 || T2 == -1 || T3 == -1) {
-            min_dist = 0;  ///No feasible path. Treat as distance is zero.
-            return false;
+    for(int i=0; i<3; i++){
+        if(fabs(v0(i)) > MAX_V_XY) {
+            v0(i) = MAX_V_XY * v0(i) / fabs(v0(i));
+            ROS_WARN_THROTTLE(1, "v_limit in local planning is large than the values in the loaded table!  v0 max=%f", v0.cwiseAbs().maxCoeff());
+        }
+        if(fabs(a0(i)) > MAX_A) {
+            a0(i) = MAX_A * a0(i) / fabs(a0(i));
+            ROS_WARN_THROTTLE(1, "a_limit in local planning is large than the values in the loaded table!  a0 max=%f", a0.cwiseAbs().maxCoeff());
         }
     }
+
+    double T1, T2, T3, T;
+    T1 = trajectory_time_table->query_pva_table(delt_x, v0(0), vf(0), a0(0));
+    T2 = trajectory_time_table->query_pva_table(delt_y, v0(0), vf(0), a0(0));
+    T3 = trajectory_time_table->query_pva_table(delt_z, v0(0), vf(0), a0(0));
+
+    if (T1 == -1 || T2 == -1 || T3 == -1) {
+        min_dist = 0;  ///No feasible path. Treat as distance is zero.
+        return -1;
+    }
+
 
     T = T1 > T2 ? T1 : T2;
     T = T > T3 ? T : T3;
@@ -819,11 +821,15 @@ bool generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &
     }
     min_dist = (double)min_distance;
 
-    if(if_far_from_obstacles || min_dist > allow_min_dist){ ///Safe path
-        return true;
+    if(if_far_from_obstacles){  ///Safe path getting away from obstacles
+        return 1;
     }
 
-    return false;
+    if(min_dist > allow_min_dist){  ///Safe path far from obstacles
+        return 2;
+    }
+
+    return -2;
 }
 
 
@@ -835,7 +841,7 @@ bool generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &
  * @Param: delt_theta_max_h and delt_theta_max_v are the maximum angle differece between two samples.
  * @Param: max_iteration_times defines the maximum iteration times to find a feasible path.
  *****************/
-bool feasible_path_generate(double path_length, double dist_threshold, double theta_h_range_delt_max, double theta_v_range_delt_max,
+int feasible_path_generate(double path_length, double dist_threshold, double theta_h_range_delt_max, double theta_v_range_delt_max,
                             double lamda_goal, double lamda_last, double delt_t, const Eigen::Vector3d &p0, const Eigen::Vector3d &v0,
                             const Eigen::Vector3d &a0, double yaw0, const Eigen::Vector3d& p_goal, double v_final,
                             Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t, double &theta_h_chosen, //result
@@ -861,7 +867,7 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
     double theta_h_range_delt_max_positive = theta_h_range_delt_max + (theta_h_goal - theta_star_h);
     double theta_h_range_delt_max_negative = -theta_h_range_delt_max + (theta_h_goal - theta_star_h);
 
-    bool feasible_flag = false;
+    int feasible_flag = 0;
     double banned_theta_h_delt_positive = 0.f;
     double banned_theta_h_delt_negative = -0.f;
     double banned_theta_h_delt_positive_temp = 0.f;
@@ -869,6 +875,8 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
 
     double theta_h_1, theta_v_1, delt_theta, d0, d1;
     int same_d_counter = 0;
+    int fail_reason_dist_counter = 0, fail_reason_path_generate_counter = 0;
+
     for(int iter_times = 0; iter_times < max_iteration_times; iter_times++){
         banned_theta_h_delt_positive = banned_theta_h_delt_positive_temp;
         banned_theta_h_delt_negative = banned_theta_h_delt_negative_temp;
@@ -889,7 +897,15 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
 
         feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                  p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d0);
-        if(feasible_flag){ break;}
+        if(feasible_flag > 0){
+            break;
+        }else{
+            if(feasible_flag == -1){
+                fail_reason_path_generate_counter += 1;
+            } else{
+                fail_reason_dist_counter += 1;
+            }
+        }
 
         same_d_counter = 0;
         /// Horizontally check
@@ -911,7 +927,15 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
             /// Check feasibility
             feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                                                 p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d1);
-            if(feasible_flag){ break;}
+            if(feasible_flag > 0){
+                break;
+            }else{
+                if(feasible_flag == -1){
+                    fail_reason_path_generate_counter += 1;
+                } else{
+                    fail_reason_dist_counter += 1;
+                }
+            }
 
             /// Not satisfied. Go on iteration
             double diff_d = (d1 - d0) / delt_theta;
@@ -941,6 +965,10 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
         /// Vertically check
         same_d_counter = 0;
         for(int j=0; j<2; j++){
+            if(!if_plan_vertical_path){
+                break;
+            }
+
             theta_v_1 = theta_star_v;
             delt_theta = 0.52 * std::pow(-1, j);
             for(int i=0;i<3;i++){
@@ -951,7 +979,15 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
                 }
                 feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                                                     p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d1);
-                if(feasible_flag){break;}
+                if(feasible_flag > 0){
+                    break;
+                }else{
+                    if(feasible_flag == -1){
+                        fail_reason_path_generate_counter += 1;
+                    } else{
+                        fail_reason_dist_counter += 1;
+                    }
+                }
 
                 double diff_d = (d1 - d0) / delt_theta;
                 if(fabs(diff_d) > 0.001){
@@ -963,12 +999,12 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
                     d0=d1;
                 }
             }
-            if(feasible_flag){break;}
+            if(feasible_flag > 0){break;}
         }
     }
 
     static double theta_h_chosen_last = 0.0;
-    if(feasible_flag){
+    if(feasible_flag > 0){
         theta_h_chosen = theta_h_1;
         while(theta_h_chosen > PI){  //Transform to [-pi, pi]
             theta_h_chosen -= PIx2;
@@ -977,8 +1013,10 @@ bool feasible_path_generate(double path_length, double dist_threshold, double th
             theta_h_chosen += PIx2;
         }
         theta_h_chosen_last = theta_h_chosen;
+        ROS_INFO_THROTTLE(0.5, "Found feasible path. Feasible Code: %d, Spent times: Path infeasibility: %d, Close to obstacles: %d", feasible_flag, fail_reason_path_generate_counter, fail_reason_dist_counter);
     }else{
         theta_h_chosen = theta_h_chosen_last;
+        ROS_WARN_THROTTLE(0.5, "Found no feasible path. Reason: Path infeasibility: %d, Close to obstacles: %d", fail_reason_path_generate_counter, fail_reason_dist_counter);
     }
 
     return feasible_flag;
@@ -1139,7 +1177,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
     double  algorithm_start_time = ros::Time::now().toSec();
 
     /** Generate trajectory for uav first***/
-    bool collision_check_pass_flag = false;
+    int collision_check_pass_flag = 0;
     double theta_h_chosen;
 
     if(!state_updating) /// Need to rethink the necessity of this lock!!!! CHG
@@ -1167,18 +1205,18 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         Eigen::VectorXd t;
 
         if((send_traj_buffer_p[0] - p0).squaredNorm() < PLAN_INIT_STATE_CHANGE_THRESHOLD){
-            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, 1.57, 1.0,
+            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.0,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, send_traj_buffer_p[0], send_traj_buffer_v[0], send_traj_buffer_a[0],
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_INFO_THROTTLE(3.0, "### Continue to plan!");
         }else{
-            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, 1.57, 1.0,
+            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.0,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, send_traj_buffer_p[0]*0.1 + p0*0.9, send_traj_buffer_v[0]*0.1+v0*0.9, a0,
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_INFO_THROTTLE(3.0, "### Track point too far, replan!");
         }
 
-        if(collision_check_pass_flag){
+        if(collision_check_pass_flag > 0){
             safe_trajectory_avaliable = true;
 
             // Update the buffer to publish when it's not in emergency mode. Consider data lock for multi-thread calculation
@@ -1252,7 +1290,6 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         double yaw_to_send;
 
         /// Larger update degree indicates the influence of this item
-
         double k_current_v = 0;
         static double v_direction = 0;
         if(fabs(v0(0)) > 0.05 || fabs(v0(1) > 0.05)){  // if velocity is large, use this cost from velocity direction
@@ -1383,7 +1420,7 @@ void setPointSendCallback(){
         pva_setpoint.positions.push_back(send_traj_buffer_p[buffer_send_counter](0)); //x
         pva_setpoint.positions.push_back(send_traj_buffer_p[buffer_send_counter](1)); //y
         pva_setpoint.positions.push_back(z_p_set); //z
-        pva_setpoint.positions.push_back(M_PI / 2.0);  //yaw
+        pva_setpoint.positions.push_back(0);  //yaw
 
         pva_setpoint.velocities.push_back(send_traj_buffer_v[buffer_send_counter](0));
         pva_setpoint.velocities.push_back(send_traj_buffer_v[buffer_send_counter](1));
@@ -1400,7 +1437,7 @@ void setPointSendCallback(){
         pva_setpoint.positions.push_back(p_store_for_em(0)); //x
         pva_setpoint.positions.push_back(p_store_for_em(1)); //y
         pva_setpoint.positions.push_back(p_store_for_em(2)); //z
-        pva_setpoint.positions.push_back(M_PI / 2.0);  //yaw
+        pva_setpoint.positions.push_back(0);  //yaw
 
         pva_setpoint.velocities.push_back(0);
         pva_setpoint.velocities.push_back(0);
@@ -1624,9 +1661,9 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
             a0(1) = (v0(1) - last_vy) / delt_t;
             a0(2) = (v0(2) - last_vz) / delt_t;
 
-            if(fabs(a0(0)) < 0.2) a0(0) = 0.0;  //dead zone for acc x
-            if(fabs(a0(1)) < 0.2) a0(1) = 0.0; //dead zone for acc y
-            if(fabs(a0(2)) < 0.2) a0(2) = 0.0; //dead zone for acc z
+            if(fabs(a0(0)) < 0.2 || !isfinite(a0(0))) a0(0) = 0.0;  //dead zone for acc x
+            if(fabs(a0(1)) < 0.2 || !isfinite(a0(1))) a0(1) = 0.0; //dead zone for acc y
+            if(fabs(a0(2)) < 0.2 || !isfinite(a0(2))) a0(2) = 0.0; //dead zone for acc z
         }
 
         last_time = ros::Time::now().toSec();
@@ -1635,7 +1672,9 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
         last_vz = v0(2);
 
         state_updating = false;
-        
+
+//        ROS_INFO_THROTTLE(2, "sim position updated! a0=(%f, %f, %f)", a0(0), a0(1), a0(2));
+//        ROS_INFO_THROTTLE(2, "sim position updated! v0=(%f, %f, %f)", v0(0), v0(1), v0(2));
     }
 
     if(fabs(p0(1))>DIRECTION_CHANGE_LEFT_SIZE && (p0(1))*(p_goal(1)) > 0 && DIRECTION_AUTO_CHANGE){
@@ -1689,71 +1728,50 @@ void sendMotorCommands(double yaw) // Range[-Pi, Pi], [0, 1]
     
 }
 
-void limit_to_max(float &x, float x_max)
-{
-    if(fabs(x) > fabs(x_max))
-    {
-        x = x / fabs(x) * fabs(x_max);
-    }
-}
-
-
-void simTrackPose(float sp_x, float sp_y, float sp_z, float sp_yaw){
-
-    geometry_msgs::Pose trajectory;
-    trajectory.position.x = sp_x;
-    trajectory.position.y = sp_y;
-    trajectory.position.z = sp_z;
-    trajectory.orientation.z = sp_yaw;
-
-    sim_trajectory_pub.publish(trajectory);
-}
-
-
 
 void getParameterList(ros::NodeHandle nh){
     /*** Read parameter list ***/
-    nh.getParam("/local_planning_dynamic/goal_position_x", p_goal(0));
-    nh.getParam("/local_planning_dynamic/goal_position_y", p_goal(1));
-    nh.getParam("/local_planning_dynamic/goal_position_z", p_goal(2));
+    nh.getParam("/local_planning_dynamic_gradient_sample/goal_position_x", p_goal(0));
+    nh.getParam("/local_planning_dynamic_gradient_sample/goal_position_y", p_goal(1));
+    nh.getParam("/local_planning_dynamic_gradient_sample/goal_position_z", p_goal(2));
     p_goal_raw = p_goal;
 
-    nh.getParam("/local_planning_dynamic/MAX_V_XY", MAX_V_XY);
-    nh.getParam("/local_planning_dynamic/MAX_V_Z_UP", MAX_V_Z_UP);
-    nh.getParam("/local_planning_dynamic/MAX_V_Z_DOWN", MAX_V_Z_DOWN);
-    nh.getParam("/local_planning_dynamic/MAX_A", MAX_A);
-    nh.getParam("/local_planning_dynamic/distance_reference_length", pp.d_ref);
-    nh.getParam("/local_planning_dynamic/toward_goal_k1_xy", pp.k1_xy);
-    nh.getParam("/local_planning_dynamic/toward_goal_k1_z", pp.k1_z);
-    nh.getParam("/local_planning_dynamic/less_variation_k2_xy", pp.k2_xy);
-    nh.getParam("/local_planning_dynamic/less_variation_k2_z", pp.k2_z);
-    nh.getParam("/local_planning_dynamic/v_max_at_goal_ori", pp.v_max_at_goal_ori);
-    nh.getParam("/local_planning_dynamic/collision_threshold_static", pp.collision_threshold_static);
-    nh.getParam("/local_planning_dynamic/collision_threshold_dynamic", pp.collision_threshold_dynamic);
-    nh.getParam("/local_planning_dynamic/k_current_v", hp.k_current_v);
-    nh.getParam("/local_planning_dynamic/k_planned_direction", hp.k_planned_direction);
-    nh.getParam("/local_planning_dynamic/k_v_fluctuation", hp.k_v_fluctuation);
-    nh.getParam("/local_planning_dynamic/k_dynamic_objects", hp.k_dynamic_objects);
-    nh.getParam("/local_planning_dynamic/k_common_update", hp.k_common_update);
-    nh.getParam("/local_planning_dynamic/if_publish_panel_arrays", if_publish_panel_arrays);
-    nh.getParam("/local_planning_dynamic/CAMERA_H_FOV", CAMERA_H_FOV);
-    nh.getParam("/local_planning_dynamic/kp_xy", pt.kp_xy);
-    nh.getParam("/local_planning_dynamic/kp_z", pt.kp_z);
-    nh.getParam("/local_planning_dynamic/kp_yaw", pt.kp_yaw);
-    nh.getParam("/local_planning_dynamic/p_2_delt_v_max_xy", pt.p_2_delt_v_max_xy);
-    nh.getParam("/local_planning_dynamic/p_2_delt_v_max_z", pt.p_2_delt_v_max_z);
-    nh.getParam("/local_planning_dynamic/max_yaw_rate", pt.max_yaw_rate);
-    nh.getParam("/local_planning_dynamic/head_max_yaw_delt", head_max_yaw_delt);
-    nh.getParam("/local_planning_dynamic/motor_velocity_set", motor_velocity_set);
-    nh.getParam("/local_planning_dynamic/if_plan_vertical_path", if_plan_vertical_path);
-    nh.getParam("/local_planning_dynamic/if_in_simulation", if_in_simulation);
-    nh.getParam("/local_planning_dynamic/if_flyback_enable", if_flyback_enable);
-    nh.getParam("/local_planning_dynamic/HEIGHT_LIMIT", HEIGHT_LIMIT);
-    nh.getParam("/local_planning_dynamic/XY_LIMIT", XY_LIMIT);
-    nh.getParam("/local_planning_dynamic/PLAN_INIT_STATE_CHANGE_THRESHOLD", PLAN_INIT_STATE_CHANGE_THRESHOLD);
-    nh.getParam("/local_planning_dynamic/DIRECTION_CHANGE_LEFT_SIZE", DIRECTION_CHANGE_LEFT_SIZE);
-    nh.getParam("/local_planning_dynamic/DIRECTION_AUTO_CHANGE", DIRECTION_AUTO_CHANGE);
-    nh.getParam("/local_planning_dynamic/MAP_DELAY_SECONDS", MAP_DELAY_SECONDS);
+    nh.getParam("/local_planning_dynamic_gradient_sample/MAX_V_XY", MAX_V_XY);
+    nh.getParam("/local_planning_dynamic_gradient_sample/MAX_V_Z_UP", MAX_V_Z_UP);
+    nh.getParam("/local_planning_dynamic_gradient_sample/MAX_V_Z_DOWN", MAX_V_Z_DOWN);
+    nh.getParam("/local_planning_dynamic_gradient_sample/MAX_A", MAX_A);
+    nh.getParam("/local_planning_dynamic_gradient_sample/distance_reference_length", pp.d_ref);
+    nh.getParam("/local_planning_dynamic_gradient_sample/toward_goal_k1_xy", pp.k1_xy);
+    nh.getParam("/local_planning_dynamic_gradient_sample/toward_goal_k1_z", pp.k1_z);
+    nh.getParam("/local_planning_dynamic_gradient_sample/less_variation_k2_xy", pp.k2_xy);
+    nh.getParam("/local_planning_dynamic_gradient_sample/less_variation_k2_z", pp.k2_z);
+    nh.getParam("/local_planning_dynamic_gradient_sample/v_max_at_goal_ori", pp.v_max_at_goal_ori);
+    nh.getParam("/local_planning_dynamic_gradient_sample/collision_threshold_static", pp.collision_threshold_static);
+    nh.getParam("/local_planning_dynamic_gradient_sample/collision_threshold_dynamic", pp.collision_threshold_dynamic);
+    nh.getParam("/local_planning_dynamic_gradient_sample/k_current_v", hp.k_current_v);
+    nh.getParam("/local_planning_dynamic_gradient_sample/k_planned_direction", hp.k_planned_direction);
+    nh.getParam("/local_planning_dynamic_gradient_sample/k_v_fluctuation", hp.k_v_fluctuation);
+    nh.getParam("/local_planning_dynamic_gradient_sample/k_dynamic_objects", hp.k_dynamic_objects);
+    nh.getParam("/local_planning_dynamic_gradient_sample/k_common_update", hp.k_common_update);
+    nh.getParam("/local_planning_dynamic_gradient_sample/if_publish_panel_arrays", if_publish_panel_arrays);
+    nh.getParam("/local_planning_dynamic_gradient_sample/CAMERA_H_FOV", CAMERA_H_FOV);
+    nh.getParam("/local_planning_dynamic_gradient_sample/kp_xy", pt.kp_xy);
+    nh.getParam("/local_planning_dynamic_gradient_sample/kp_z", pt.kp_z);
+    nh.getParam("/local_planning_dynamic_gradient_sample/kp_yaw", pt.kp_yaw);
+    nh.getParam("/local_planning_dynamic_gradient_sample/p_2_delt_v_max_xy", pt.p_2_delt_v_max_xy);
+    nh.getParam("/local_planning_dynamic_gradient_sample/p_2_delt_v_max_z", pt.p_2_delt_v_max_z);
+    nh.getParam("/local_planning_dynamic_gradient_sample/max_yaw_rate", pt.max_yaw_rate);
+    nh.getParam("/local_planning_dynamic_gradient_sample/head_max_yaw_delt", head_max_yaw_delt);
+    nh.getParam("/local_planning_dynamic_gradient_sample/motor_velocity_set", motor_velocity_set);
+    nh.getParam("/local_planning_dynamic_gradient_sample/if_plan_vertical_path", if_plan_vertical_path);
+    nh.getParam("/local_planning_dynamic_gradient_sample/if_in_simulation", if_in_simulation);
+    nh.getParam("/local_planning_dynamic_gradient_sample/if_flyback_enable", if_flyback_enable);
+    nh.getParam("/local_planning_dynamic_gradient_sample/HEIGHT_LIMIT", HEIGHT_LIMIT);
+    nh.getParam("/local_planning_dynamic_gradient_sample/XY_LIMIT", XY_LIMIT);
+    nh.getParam("/local_planning_dynamic_gradient_sample/PLAN_INIT_STATE_CHANGE_THRESHOLD", PLAN_INIT_STATE_CHANGE_THRESHOLD);
+    nh.getParam("/local_planning_dynamic_gradient_sample/DIRECTION_CHANGE_LEFT_SIZE", DIRECTION_CHANGE_LEFT_SIZE);
+    nh.getParam("/local_planning_dynamic_gradient_sample/DIRECTION_AUTO_CHANGE", DIRECTION_AUTO_CHANGE);
+    nh.getParam("/local_planning_dynamic_gradient_sample/MAP_DELAY_SECONDS", MAP_DELAY_SECONDS);
 
     if(if_in_simulation)  ROS_WARN("In simulation mode");
 
@@ -1769,8 +1787,11 @@ int main(int argc, char** argv)
     setParameters();    /// chg, use parameters defined here
     getParameterList(nh);
 
-    trajectory_time_table->csv2pva_table("/home/topup/hsh_ws/planning_ws/src/hybrid_local_map/others/p3-2_v1-5_a2_res0-1.csv");
-    table_initialized = true;
+    if(if_flyback_enable){
+        max_sample_delt_angle = 3.1;
+    }
+
+    trajectory_time_table->csv2pva_table("/home/ubuntu/chg_workspace/rolling_head_ws_new/src/hybrid_local_map/secure_flying/others/p3-2_v1-5_a2_res0-1.csv");
     ROS_WARN("trajectory_time_table loaded!");
 
     // State parameters initiate
@@ -1814,6 +1835,7 @@ int main(int argc, char** argv)
 
     motor_pub = nh.advertise<geometry_msgs::Point32>("/place_velocity_info_corrected", 1, true); 
     ros::Subscriber dynamic_objects_sub = nh.subscribe("/mot/objects_in_tracking", 1, dynamicObjectsCallback);
+    pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
 
     ros::Subscriber mode_sub, position_isolate_sub, velocity_isolate_sub, motor_sub, cloud_sub, sim_odom_isolate_sub;
 
@@ -1835,7 +1857,6 @@ int main(int argc, char** argv)
 
         head_cmd_pub = nh.advertise<geometry_msgs::Point32>("/gimbal_commands", 2, true); 
         // cmd_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 2, true); 
-        pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
 
     }else{
          /*** For simulation test***/
@@ -1857,8 +1878,6 @@ int main(int argc, char** argv)
         head_cmd_pub = nh.advertise<std_msgs::Float64>("/iris/joint1_position_controller/command", 2, true);
         if(if_sim_lee_position_controller){
             sim_trajectory_pub = nh.advertise<geometry_msgs::Pose>("/trajectory_setpoint", 2, true);
-        }else{
-            cmd_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("/setpoint_velocity/cmd_vel", 2, true);
         }
 
         if(DIRECTION_AUTO_CHANGE){
@@ -1900,15 +1919,15 @@ void setParameters(){
     p_goal(2)=0.8;
     p_goal_raw = p_goal;
 
-    MAX_V_XY = 0.8;
+    MAX_V_XY = 1.5;
     MAX_V_Z_UP = 0.8;
     MAX_V_Z_DOWN = 0.4;
-    MAX_A = 1.5;
+    MAX_A = 2.0;
     pp.d_ref = 1.5;
-    pp.k1_xy = 2.0;
-    pp.k1_z = 2.0;
-    pp.k2_xy = 3.0;
-    pp.k2_z = 3.5;
+    pp.k1_xy = 4.0;
+    pp.k1_z = 4.0;
+    pp.k2_xy = 1.0;
+    pp.k2_z = 1.5;
     pp.v_max_at_goal_ori = 0.3;
     pp.collision_threshold_static = 0.6;
     pp.collision_threshold_dynamic = 0.8;
@@ -1927,8 +1946,8 @@ void setParameters(){
     pt.max_yaw_rate = 1.0;
     head_max_yaw_delt = 0.5;
     motor_velocity_set = 40;
-    if_plan_vertical_path = false;
-    if_in_simulation = false;
+    if_plan_vertical_path = true;
+    if_in_simulation = true;
     if_flyback_enable = true;
     HEIGHT_LIMIT = 1.8;
     XY_LIMIT = 2.2;
