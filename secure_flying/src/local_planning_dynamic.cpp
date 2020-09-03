@@ -61,8 +61,8 @@ const float SEND_DURATION = 0.050f; //20Hz (10HZ at least)
 
 ewok::EuclideanDistanceNormalRingBuffer<POW> rrb(resolution, trunc_distance); //Distance truncation threshold
 
-const int ANGLE_H_NUM = 21;
-const int ANGLE_V_NUM = 1;
+const int ANGLE_H_NUM = 17;
+const int ANGLE_V_NUM = 17;
 const int LOOKING_PIECES_SIZE = 16; // Should be even, Resolution: 22.5 degrees one piece. MID=7. Yaw=0. Larger: 7 - 15 :  0 to Pi;  Smaller: 7-0 : 0 to (nearly)-Pi;
 float CAMERA_H_FOV = 62.f;  //degrees, in parameter list
 const float HEAD_BUFFER_HIT_INCREASE = 0.4f;
@@ -126,7 +126,6 @@ ros::Publisher current_marker_pub;
 ros::Publisher cloud2_pub, cloud_edf_pub, goal_pub;
 ros::Publisher map_center_pub;
 
-ros::Publisher cmd_vel_pub; // add on 17 Sept.
 ros::Publisher head_cmd_pub; // add on 9 Sept.
 ros::Publisher motor_pub;
 ros::Publisher pva_pub;  //add on 20 Aug. 2020
@@ -218,8 +217,6 @@ void sendMotorCommands(double yaw);
 
 // void trackVelocityPose(float vx_sp, float vy_sp, float vz_sp, float yaw_rate_sp,
 //                     float px_sp_last, float py_sp_last, float pz_sp_last, float yaw_sp_last);
-
-void simTrackPose(float sp_x, float sp_y, float sp_z, float sp_yaw);
 
 void setPointSendCallback();
 
@@ -637,7 +634,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     }
 
      Eigen::Vector3f cube_size_to_remove_uav;
-     cube_size_to_remove_uav << 0.6, 0.6, 0.6;
+     cube_size_to_remove_uav << 1, 1, 1.2;
      Eigen::Vector3f uav_position;
      uav_position << p0(0), p0(1), p0(2);
      ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_uav_cube;
@@ -738,7 +735,7 @@ void cloudPubCallback(const ros::TimerEvent& e)
 }
 
 /** This function is to generate state to state trajectory **/
-bool motion_primitives_with_table(Eigen::Vector3d p0, Eigen::Vector3d v0, Eigen::Vector3d a0, double yaw0, double theta_h,
+bool motion_primitives_with_table(Eigen::Vector3d p0, Eigen::Vector3d v0_ori, Eigen::Vector3d a0_ori, double yaw0, double theta_h,
                                   double theta_v, Eigen::Vector3d goal, double d, double v_max, double delt_t,
                                   Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t)
 {
@@ -748,6 +745,9 @@ bool motion_primitives_with_table(Eigen::Vector3d p0, Eigen::Vector3d v0, Eigen:
 
     Eigen::Vector3d pf;
     pf << p0(0)+delt_x, p0(1)+delt_y, p0(2)+delt_z;
+
+//    ROS_INFO_THROTTLE(0.2, "pf=(%f, %f, %f)", pf(0), pf(1), pf(2));
+//    ROS_INFO_THROTTLE(0.2, "p0=(%f, %f, %f)", p0(0), p0(1), p0(2));
 
     Eigen::Vector3d l = goal - pf;
     Eigen::Vector3d vf = (v_max / l.norm()) * l;
@@ -759,26 +759,26 @@ bool motion_primitives_with_table(Eigen::Vector3d p0, Eigen::Vector3d v0, Eigen:
     double a_limit = MAX_A;
     double v_limit = MAX_V_XY;
 
+    Eigen::Vector3d v0 = v0_ori;
+    Eigen::Vector3d a0 = a0_ori;
+    for(int i=0; i<3; i++){
+        if(fabs(v0(i)) > MAX_V_XY) {
+            v0(i) = MAX_V_XY * v0(i) / fabs(v0(i));
+            ROS_WARN_THROTTLE(1, "v_limit in local planning is large than the values in the loaded table!  v0 max=%f", v0.cwiseAbs().maxCoeff());
+        }
+        if(fabs(a0(i)) > MAX_A) {
+            a0(i) = MAX_A * a0(i) / fabs(a0(i));
+            ROS_WARN_THROTTLE(1, "a_limit in local planning is large than the values in the loaded table!  a0 max=%f", a0.cwiseAbs().maxCoeff());
+        }
+    }
+
     double T1, T2, T3, T;
+    T1 = trajectory_time_table->query_pva_table(delt_x, v0(0), vf(0), a0(0));
+    T2 = trajectory_time_table->query_pva_table(delt_y, v0(0), vf(0), a0(0));
+    T3 = trajectory_time_table->query_pva_table(delt_z, v0(0), vf(0), a0(0));
 
-    if (v0.cwiseAbs().maxCoeff() > v_limit || a0.cwiseAbs().maxCoeff() > a_limit || !table_initialized) {
-        // T1 = fabs(af(0)-a0(0))/j_limit > fabs(af(1)-a0(1))/j_limit ? fabs(af(0)-a0(0))/j_limit : fabs(af(1)-a0(1))/j_limit;
-        // T1 = T1 > fabs(af(2)-a0(2))/j_limit ? T1 : fabs(af(2)-a0(2))/j_limit;
-
-        // T2 = fabs(vf(0)-v0(0))/a_limit > fabs(vf(1)-v0(1))/a_limit ? fabs(vf(0)-v0(0))/a_limit : fabs(vf(1)-v0(1))/a_limit;
-        // T2 = T2 > fabs(vf(2)-v0(2))/a_limit ? T2 : fabs(vf(2)-v0(2))/a_limit;
-
-        // T3 = fabs(pf(0)-p0(0))/v_limit > fabs(pf(1)-p0(1))/v_limit ? fabs(pf(0)-p0(0))/v_limit : fabs(pf(1)-p0(1))/v_limit;
-        // T3 = T3 > fabs(pf(2)-p0(2))/v_limit ? T3 : fabs(pf(2)-p0(2))/v_limit;
+    if (T1 == -1 || T2 == -1 || T3 == -1) {
         return false;
-    } else {
-        T1 = trajectory_time_table->query_pva_table(delt_x, v0(0), vf(0), a0(0));
-        T2 = trajectory_time_table->query_pva_table(delt_y, v0(0), vf(0), a0(0));
-        T3 = trajectory_time_table->query_pva_table(delt_z, v0(0), vf(0), a0(0));
-
-        // ROS_ERROR("Table used");
-
-        if (T1 == -1 || T2 == -1 || T3 == -1) return false;
     }
 
     T = T1 > T2 ? T1 : T2;
@@ -830,78 +830,6 @@ bool motion_primitives_with_table(Eigen::Vector3d p0, Eigen::Vector3d v0, Eigen:
     return true;
 }
 
-
-
-
-// void motion_primitives(Eigen::Vector3d p0, Eigen::Vector3d v0, Eigen::Vector3d a0, double yaw_current, double theta_h,
-//                        double theta_v, Eigen::Vector3d goal, double d, double v_max, double delt_t,
-//                        Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t)
-// {
-//     double delt_x = d*cos(theta_v)*cos(theta_h+yaw_current);
-//     double delt_y = d*cos(theta_v)*sin(theta_h+yaw_current);
-//     double delt_z = d*sin(theta_v);
-
-//     Eigen::Vector3d pf;
-//     pf << p0(0)+delt_x, p0(1)+delt_y, p0(2)+delt_z;
-
-//     Eigen::Vector3d l = goal - pf;
-//     Eigen::Vector3d vf = (v_max / l.norm()) * l;
-//     vf(2) = 0; // % Note: 0 maybe better, for the p curve wont go down to meet the vf
-
-//     Eigen::Vector3d af = Eigen::Vector3d::Zero();
-
-//     // % Choose the time as running in average velocity
-//     // double decay_parameter = 0.5;
-//     // double T = 0.2;
-
-//     double j_limit = 5;
-//     double a_limit = MAX_A;
-//     double v_limit = MAX_V_XY;
-
-// //    double T1 = fabs(af(0)-a0(0))/j_limit > fabs(af(1)-a0(1))/j_limit ? fabs(af(0)-a0(0))/j_limit : fabs(af(1)-a0(1))/j_limit;
-// //    T1 = T1 > fabs(af(2)-a0(2))/j_limit ? T1 : fabs(af(2)-a0(2))/j_limit;
-//     double T2 = fabs(vf(0)-v0(0))/a_limit > fabs(vf(1)-v0(1))/a_limit ? fabs(vf(0)-v0(0))/a_limit : fabs(vf(1)-v0(1))/a_limit;
-//     T2 = T2 > fabs(vf(2)-v0(2))/a_limit ? T2 : fabs(vf(2)-v0(2))/a_limit;
-//     double T3 = fabs(pf(0)-p0(0))/v_limit > fabs(pf(1)-p0(1))/v_limit ? fabs(pf(0)-p0(0))/v_limit : fabs(pf(1)-p0(1))/v_limit;
-//     T3 = T3 > fabs(pf(2)-p0(2))/v_limit ? T3 : fabs(pf(2)-p0(2))/v_limit;
-
-// //    double T = T1 > T2 ? T1 : T2;
-// //    T = T > T3 ? T : T3;
-//     double T = T2;
-//     T = T > T3 ? T : T3;
-//     T = T < 0.3 ? 0.3 : T;
-
-// //    ROS_INFO_THROTTLE(2, "T=%lf", T);
-
-//     int times = T / delt_t;
-
-//     p = Eigen::MatrixXd::Zero(times, 3);
-//     v = Eigen::MatrixXd::Zero(times, 3);
-//     a = Eigen::MatrixXd::Zero(times, 3);
-//     t = Eigen::VectorXd::Zero(times);
-
-//     // % calculate optimal jerk controls by Mark W. Miller
-//     for(int ii=0; ii<3; ii++)
-//     {
-//         double delt_a = af(ii) - a0(ii);
-//         double delt_v = vf(ii) - v0(ii) - a0(ii)*T;
-//         double delt_p = pf(ii) - p0(ii) - v0(ii)*T - 0.5*a0(ii)*T*T;
-
-//         //%  if vf is not free
-//         double alpha = delt_a*60/pow(T,3) - delt_v*360/pow(T,4) + delt_p*720/pow(T,5);
-//         double beta = -delt_a*24/pow(T,2) + delt_v*168/pow(T,3) - delt_p*360/pow(T,4);
-//         double gamma = delt_a*3/T - delt_v*24/pow(T,2) + delt_p*60/pow(T,3);
-
-//         for(int jj=0; jj<times; jj++)
-//         {
-//             double tt = (jj + 1)*delt_t;
-//             t(jj) = tt;
-//             p(jj,ii) = alpha/120*pow(tt,5) + beta/24*pow(tt,4) + gamma/6*pow(tt,3) + a0(ii)/2*pow(tt,2) + v0(ii)*tt + p0(ii);
-//             v(jj,ii) = alpha/24*pow(tt,4) + beta/6*pow(tt,3) + gamma/2*pow(tt,2) + a0(ii)*tt + v0(ii);
-//             a(jj,ii) = alpha/6*pow(tt,3) + beta/2*pow(tt,2) + gamma*tt + a0(ii);
-//         }
-//     }
-// }
 
 /* Publish markers to show the path in rviz */
 void marker_publish(Eigen::MatrixXd &Points)
@@ -1125,6 +1053,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
             first_plan = false;
         }
 
+        int sampled_times_this = pp.max_plan_num;
         for(int seq=0; seq<pp.max_plan_num; seq ++)
         {
             Eigen::MatrixXd p;
@@ -1149,10 +1078,6 @@ void trajectoryCallback(const ros::TimerEvent& e) {
                 }
                 ROS_INFO_THROTTLE(3.0, "### Track point too far, replan!");
             }
-
-            p.col(2) = Eigen::VectorXd::Ones(p.rows()) * init_p(2);
-            v.col(2) = Eigen::VectorXd::Zero(p.rows());
-            a.col(2) = Eigen::VectorXd::Zero(p.rows());
 
             // Get points number on the path
             const int Num = p.rows();
@@ -1179,9 +1104,9 @@ void trajectoryCallback(const ros::TimerEvent& e) {
 
             if(collision_check_pass_flag > 0)
             {
-                ROS_INFO_THROTTLE(1.0, "Safe trajectory num = %d", seq);
                 //ROS_INFO("traj_safe");
                 safe_trajectory_avaliable = true;
+                sampled_times_this = seq;
 
                 theta_h_chosen = cost(seq,1); 
                 theta_h_last = cost(seq,1); // Update last theta
@@ -1241,10 +1166,23 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         ROS_INFO_THROTTLE(3.0, "path planning algorithm time is: %lf", algo_time);
         _algorithm_time = ros::Time::now();
 
+        /*** Code to calculate average sample times ***/
+        static long long total_times = 0;
+        static long long calculate_times = 0;
+        static double flight_start_time = ros::Time::now().toSec();
+
+        total_times += sampled_times_this + 1;
+        calculate_times += 1;
+        double avg_sample_times = (double)total_times / calculate_times;
+        ROS_INFO_THROTTLE(0.5, "Current time=%f s, avg_sample_times=%f", ros::Time::now().toSec()-flight_start_time,avg_sample_times);
+        /*** END ****/
+
         state_locked = false;
     }
 
     setPointSendCallback();  /// Send control setpoint
+
+
 
     /** Generate trajectory for rotating head **/
     static double last_head_yaw_plan = 0.0;
@@ -1401,7 +1339,7 @@ void setPointSendCallback(){
         pva_setpoint.positions.push_back(send_traj_buffer_p[buffer_send_counter](0)); //x
         pva_setpoint.positions.push_back(send_traj_buffer_p[buffer_send_counter](1)); //y
         pva_setpoint.positions.push_back(z_p_set); //z
-        pva_setpoint.positions.push_back(M_PI / 2.0);  //yaw
+        pva_setpoint.positions.push_back(0);  //yaw
 
         pva_setpoint.velocities.push_back(send_traj_buffer_v[buffer_send_counter](0));
         pva_setpoint.velocities.push_back(send_traj_buffer_v[buffer_send_counter](1));
@@ -1420,7 +1358,7 @@ void setPointSendCallback(){
         pva_setpoint.positions.push_back(p_store_for_em(0)); //x
         pva_setpoint.positions.push_back(p_store_for_em(1)); //y
         pva_setpoint.positions.push_back(p_store_for_em(2)); //z
-        pva_setpoint.positions.push_back(M_PI / 2.0);  //yaw
+        pva_setpoint.positions.push_back(0);  //yaw
 
         pva_setpoint.velocities.push_back(0);
         pva_setpoint.velocities.push_back(0);
@@ -1462,9 +1400,9 @@ void positionCallback(const geometry_msgs::PoseStamped& msg)
         //axis.x() = axis.x() * sin(-PI_2/2.0);
         //axis.y() = axis.y() * sin(-PI_2/2.0);
         //axis.z() = axis.z() * sin(-PI_2/2.0);
-	axis.x() = 0.0;
-	axis.y() = 0.0;
-	axis.z() = sin(-PI_2/2.0);
+        axis.x() = 0.0;
+        axis.y() = 0.0;
+        axis.z() = sin(-PI_2/2.0);
         quad = quad * axis;
 
         // Queue for synchronization
@@ -1653,9 +1591,9 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
             a0(1) = (v0(1) - last_vy) / delt_t;
             a0(2) = (v0(2) - last_vz) / delt_t;
 
-            if(fabs(a0(0)) < 0.2) a0(0) = 0.0;  //dead zone for acc x
-            if(fabs(a0(1)) < 0.2) a0(1) = 0.0; //dead zone for acc y
-            if(fabs(a0(2)) < 0.2) a0(2) = 0.0; //dead zone for acc z
+            if(fabs(a0(0)) < 0.2 || !isfinite(a0(0))) a0(0) = 0.0;  //dead zone for acc x
+            if(fabs(a0(1)) < 0.2 || !isfinite(a0(1))) a0(1) = 0.0; //dead zone for acc y
+            if(fabs(a0(2)) < 0.2 || !isfinite(a0(2))) a0(2) = 0.0; //dead zone for acc z
         }
 
         last_time = ros::Time::now().toSec();
@@ -1697,53 +1635,6 @@ void uavModeCallback(const mavros_msgs::State &msg)
     else offboard_ready=false;
 }
 
-//void motorCallback(const geometry_msgs::Point32& msg)
-//{
-//    static bool init_time = true;
-//
-//    if(init_time)
-//    {
-//        init_head_yaw = msg.x;
-//        init_time = false;
-//        ROS_INFO("Head Init Yaw in motor coordinate=%f", init_head_yaw);
-//    }
-//    else
-//    {
-//        motor_yaw = -msg.x + init_head_yaw; // + PI_2?? //start with zero, original z for motor is down. now turn to ENU coordinate. Head forward is PI/2 ???????????
-//        motor_yaw_rate = -msg.y;
-//
-//        geometry_msgs::Point32 real_motor_pv;
-//        real_motor_pv.x = motor_yaw;
-//        real_motor_pv.y = motor_yaw_rate;
-//        real_motor_pv.z = 0;
-//
-//        motor_pub.publish(real_motor_pv);
-//    }
-//}
-//
-//void simMotorCallback(const control_msgs::JointControllerState& msg)
-//{
-//    static bool init_time = true;
-//
-//    if(init_time)
-//    {
-//        init_head_yaw = msg.process_value;
-//        init_time = false;
-//        ROS_INFO("Head Init Yaw in motor coordinate=%f", init_head_yaw);
-//    }
-//    else
-//    {
-//        motor_yaw = msg.process_value - init_head_yaw; // + PI_2?? //start with zero, original z for motor is down. now turn to ENU coordinate. Head forward is PI/2 ???????????
-//        motor_yaw_rate = 0.0;
-//
-//        geometry_msgs::Point32 real_motor_pv;
-//        real_motor_pv.x = motor_yaw;
-//        real_motor_pv.y = motor_yaw_rate;
-//        real_motor_pv.z = 0;
-//
-//        motor_pub.publish(real_motor_pv);
-//    }
-//}
 
 void sendMotorCommands(double yaw) // Range[-Pi, Pi], [0, 1]
 {
@@ -1765,92 +1656,6 @@ void sendMotorCommands(double yaw) // Range[-Pi, Pi], [0, 1]
     }
     
 }
-
-
-void limit_to_max(float &x, float x_max)
-{
-    if(fabs(x) > fabs(x_max))
-    {
-        x = x / fabs(x) * fabs(x_max);
-    }
-}
-
-// void trackVelocityPose(float vx_sp, float vy_sp, float vz_sp, float yaw_rate_sp,
-//                     float px_sp_last, float py_sp_last, float pz_sp_last, float yaw_sp_last)
-// {
-//     geometry_msgs::TwistStamped cmd_to_pub;
-//     /*Simple tracker*/
-//     static float kp_xy = pt.kp_xy;
-//     static float kp_z = pt.kp_z;
-//     static float kp_yaw = pt.kp_yaw;
-//     static float p_2_delt_v_max_xy = pt.p_2_delt_v_max_xy;
-//     static float p_2_delt_v_max_z = pt.p_2_delt_v_max_z;
-//     static float max_v_xy = MAX_V_XY;
-//     static float max_v_z_up = MAX_V_Z_UP;
-//     static float max_v_z_down = MAX_V_Z_DOWN;	
-//     static float max_yaw_rate = pt.max_yaw_rate;
-
-//     float time_interval = SEND_DURATION;
-//     // NOTE: The updating frequency of position is not equal to CONTROL_RATE. It is just a reference time.
-//     float delt_px_to_vx = (px_sp_last - p0(0)) / time_interval * kp_xy; 
-//     float delt_py_to_vy = (py_sp_last - p0(1)) / time_interval * kp_xy;
-//     float delt_pz_to_vz = (pz_sp_last - p0(2)) / time_interval * kp_z;
-
-//     limit_to_max(delt_px_to_vx, p_2_delt_v_max_xy);
-//     limit_to_max(delt_py_to_vy, p_2_delt_v_max_xy);
-//     limit_to_max(delt_pz_to_vz, p_2_delt_v_max_z);
-
-//     vx_sp += delt_px_to_vx;
-//     vy_sp += delt_py_to_vy;
-//     vz_sp += delt_pz_to_vz;
-//     if(fabs(yaw_sp_last - yaw0) > 0.1) {
-//         yaw_rate_sp += (yaw_sp_last - yaw0) / time_interval * kp_yaw;
-//     }
-
-//     if(fabs(vz_sp) < 0.05) vz_sp = 0.f;  //dead zone for vz
-
-//     limit_to_max(vx_sp, max_v_xy);
-//     limit_to_max(vy_sp, max_v_xy);
-//     // limit_to_max(vz_sp, max_v_z);
-//     limit_to_max(yaw_rate_sp, max_yaw_rate);
-
-//     if(vz_sp > max_v_z_up) vz_sp = max_v_z_up;
-//     else if(vz_sp < -max_v_z_down) vz_sp = -max_v_z_down;
-
-//     if(!if_in_simulation){
-//         /*Publish by NWU to ENU in real UAV*/
-//         cmd_to_pub.header.stamp = ros::Time::now();
-//         cmd_to_pub.twist.linear.x = -vy_sp;
-//         cmd_to_pub.twist.linear.y = vx_sp;
-//         cmd_to_pub.twist.linear.z = vz_sp;
-//         cmd_to_pub.twist.angular.z = yaw_rate_sp;
-//         cmd_vel_pub.publish(cmd_to_pub);
-//     } else{
-//         /*Publish by NWU in Simulation */
-//         cmd_to_pub.header.stamp = ros::Time::now();
-//         cmd_to_pub.twist.linear.x = vx_sp;
-//         cmd_to_pub.twist.linear.y = vy_sp;
-//         cmd_to_pub.twist.linear.z = vz_sp;
-//         cmd_to_pub.twist.angular.z = yaw_rate_sp;
-//         cmd_vel_pub.publish(cmd_to_pub);
-//     }
-
-//     // ROS_INFO("p(0)=%f,p(1)=%f,p(2)=%f,yaw=%f", p0(0),p0(1),p0(2),yaw0);
-//     // ROS_INFO("v(0)=%f,v(1)=%f,v(2)=%f,yaw_rate=%f", v0(0),v0(1),v0(2),yaw0_rate);
-//     // ROS_INFO("vx_sp=%f,vy_sp=%f,vz_sp=%f,yaw_rate_sp=%f", vx_sp, vy_sp, vz_sp, yaw_rate_sp);
-// }
-
-void simTrackPose(float sp_x, float sp_y, float sp_z, float sp_yaw){
-
-    geometry_msgs::Pose trajectory;
-    trajectory.position.x = sp_x;
-    trajectory.position.y = sp_y;
-    trajectory.position.z = sp_z;
-    trajectory.orientation.z = sp_yaw;
-
-    sim_trajectory_pub.publish(trajectory);
-}
-
 
 
 void getParameterList(ros::NodeHandle nh){
@@ -1911,7 +1716,7 @@ int main(int argc, char** argv)
     setParameters();    /// chg, use parameters defined here
     getParameterList(nh);
 
-    trajectory_time_table->csv2pva_table("/home/topup/hsh_ws/planning_ws/src/hybrid_local_map/others/p3-2_v1-5_a2_res0-1.csv");
+    trajectory_time_table->csv2pva_table("/home/ubuntu/chg_workspace/rolling_head_ws_new/src/hybrid_local_map/secure_flying/others/p3-2_v1-5_a2_res0-1.csv");
     table_initialized = true;
     ROS_WARN("trajectory_time_table loaded!");
 
@@ -1929,13 +1734,16 @@ int main(int argc, char** argv)
     // Horizontal angles larger than 90 degree are deleted
     //Angle_h << -90, -70, -50, -30, -20, -10, 0, 10, 20, 30, 50, 70, 90;
     if(if_flyback_enable){
-        Angle_h << -90, -80, -70, -60, -50, -40, -30, -20, -10, -5, 0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90;
+//        Angle_h << -130, -90, -75, -60, -45, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 45, 60, 75, 90, 130;
+        Angle_h << -120, -112, -104, -96, -88, -80, -72, -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120;
     }else{
-        Angle_h << -90, -80, -70, -60, -50, -40, -30, -20, -10, 0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90;
+//        Angle_h << -90, -80, -70, -60, -50, -40, -30, -20, -10, 0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90;
+        Angle_h << -60, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 60;
+
     }
 
     if(if_plan_vertical_path){
-        Angle_v << -60, -30, -10, 0, 10, 30, 60;
+        Angle_v << -60, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 60;
     } else{
         Angle_v << 0;
     }
@@ -1984,6 +1792,7 @@ int main(int argc, char** argv)
     ros::Subscriber dynamic_objects_sub = nh.subscribe("/mot/objects_in_tracking", 1, dynamicObjectsCallback);
 
     ros::Subscriber mode_sub, position_isolate_sub, velocity_isolate_sub, motor_sub, cloud_sub, sim_odom_isolate_sub;
+    pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
 
     /*** For real world test***/
     if(!if_in_simulation){
@@ -2002,9 +1811,6 @@ int main(int argc, char** argv)
         sync_->registerCallback(boost::bind(&cloudCallback, _1, _2));
 
         head_cmd_pub = nh.advertise<geometry_msgs::Point32>("/gimbal_commands", 2, true); 
-        // cmd_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 2, true); 
-        pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
-
     }else{
          /*** For simulation test***/
         offboard_ready = true;
@@ -2025,8 +1831,6 @@ int main(int argc, char** argv)
         head_cmd_pub = nh.advertise<std_msgs::Float64>("/iris/joint1_position_controller/command", 2, true);
         if(if_sim_lee_position_controller){
             sim_trajectory_pub = nh.advertise<geometry_msgs::Pose>("/trajectory_setpoint", 2, true);
-        }else{
-            cmd_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("/setpoint_velocity/cmd_vel", 2, true);
         }
 
         if(DIRECTION_AUTO_CHANGE){
@@ -2036,7 +1840,7 @@ int main(int argc, char** argv)
     }
 
     // timer for publish ringbuffer as pointcloud
-    ros::Timer timer1 = nh.createTimer(ros::Duration(0.2), cloudPubCallback); // RATE 3 Hz to publish
+    ros::Timer timer1 = nh.createTimer(ros::Duration(0.2), cloudPubCallback); // RATE 5 Hz to publish
 
     // timer for trajectory generation
     /// ***** don't excute this callback in data collection, chg
@@ -2063,23 +1867,23 @@ int main(int argc, char** argv)
 
 
 void setParameters(){
-    p_goal(0) = 0.0;
-    p_goal(1)=6.0;
-    p_goal(2)=0.8;
+    p_goal(0) = 60.0;
+    p_goal(1)= 0.0;
+    p_goal(2)=1.1;
     p_goal_raw = p_goal;
 
-    MAX_V_XY = 0.8;
+    MAX_V_XY = 1.5;
     MAX_V_Z_UP = 0.8;
     MAX_V_Z_DOWN = 0.4;
-    MAX_A = 1.5;
-    pp.d_ref = 1.5;
-    pp.k1_xy = 2.0;
-    pp.k1_z = 2.0;
-    pp.k2_xy = 3.0;
-    pp.k2_z = 3.5;
+    MAX_A = 2.0;
+    pp.d_ref = 2.0;
+    pp.k1_xy = 4.0;
+    pp.k1_z = 4.0;
+    pp.k2_xy = 1.0;
+    pp.k2_z = 1.0;
     pp.v_max_at_goal_ori = 0.3;
-    pp.collision_threshold_static = 0.6;
-    pp.collision_threshold_dynamic = 0.8;
+    pp.collision_threshold_static = 0.5;
+    pp.collision_threshold_dynamic = 0.6;
     hp.k_current_v = 0.7;
     hp.k_planned_direction = 0.2;
     hp.k_v_fluctuation = 0.4;
@@ -2095,14 +1899,14 @@ void setParameters(){
     pt.max_yaw_rate = 1.0;
     head_max_yaw_delt = 0.5;
     motor_velocity_set = 40;
-    if_plan_vertical_path = false;
-    if_in_simulation = false;
-    if_flyback_enable = true;
+    if_plan_vertical_path = true;
+    if_in_simulation = true;
+    if_flyback_enable = false;
     HEIGHT_LIMIT = 1.8;
     XY_LIMIT = 2.2;
     PLAN_INIT_STATE_CHANGE_THRESHOLD = 0.1;
     DIRECTION_CHANGE_LEFT_SIZE = 1.5;
-    DIRECTION_AUTO_CHANGE = true;
+    DIRECTION_AUTO_CHANGE = false;
     MAP_DELAY_SECONDS = 0.05;
 }
 

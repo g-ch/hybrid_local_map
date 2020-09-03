@@ -179,7 +179,7 @@ Eigen::Vector3d *send_traj_buffer_a;
 int send_buffer_size = 0;
 int send_buffer_size_max;
 
-double max_sample_delt_angle = 1.57;
+double max_sample_delt_angle = 1.0;
 
 /*** Global variables for rotating head ***/
 Eigen::VectorXf _direction_update_buffer; // Range [0, 1]
@@ -845,9 +845,8 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
                             double lamda_goal, double lamda_last, double delt_t, const Eigen::Vector3d &p0, const Eigen::Vector3d &v0,
                             const Eigen::Vector3d &a0, double yaw0, const Eigen::Vector3d& p_goal, double v_final,
                             Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t, double &theta_h_chosen, //result
-                            double delt_theta_max_h = 0.6f, double delt_theta_max_v = 0.4f, int max_iteration_times = 10)
+                            double delt_theta_max_h = 0.785f, double delt_theta_max_v = 0.4f, int max_iteration_times = 10)
 {
-
     static double theta_h_last, theta_v_last;
     Eigen::Vector3d delt_p = p_goal - p0;
     double theta_h_goal, theta_v_goal;
@@ -888,15 +887,18 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
         if(fabs(banned_theta_h_delt_positive) <= fabs(banned_theta_h_delt_negative)){
             theta_h_1 = theta_star_h + banned_theta_h_delt_positive;
             theta_v_1 = theta_star_v;
-            delt_theta = 0.3f;
+            delt_theta = 0.4f;
         }else{
             theta_h_1 = theta_star_h + banned_theta_h_delt_negative;
             theta_v_1 = theta_star_v;
-            delt_theta = -0.3f;
+            delt_theta = -0.4f;
         }
 
         feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                  p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d0);
+        double d0_h_first = d0;
+        double theta_h_1_first = theta_h_1;
+
         if(feasible_flag > 0){
             break;
         }else{
@@ -912,6 +914,7 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
         for(int iter_unbanned_area=0; iter_unbanned_area<4; iter_unbanned_area++){
             double last_theta_h_1 = theta_h_1;
             theta_h_1 = theta_h_1 + delt_theta;
+
             if(theta_h_1 > theta_star_h+theta_h_range_delt_max_positive || theta_h_1 < theta_star_h+theta_h_range_delt_max_negative){
                 /// theta_h_1 out of range
                 theta_h_1 = last_theta_h_1;
@@ -943,6 +946,10 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
                 delt_theta = (dist_threshold - d1) / diff_d;
                 delt_theta = std::min(delt_theta, delt_theta_max_h);
                 delt_theta = std::max(delt_theta, -delt_theta_max_h);
+                if(fabs(delt_theta) < 0.05){
+                    if(delt_theta > 0) delt_theta = 0.05;
+                    else delt_theta = -0.05;
+                }
                 d0 = d1;
                 same_d_counter = 0;
             }else{
@@ -961,25 +968,34 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
                 }
             }
         }
+        if(feasible_flag > 0){break;}
 
         /// Vertically check
         same_d_counter = 0;
+        d1 = d0_h_first;
+        theta_h_1 = theta_h_1_first;
+
         for(int j=0; j<2; j++){
             if(!if_plan_vertical_path){
                 break;
             }
 
             theta_v_1 = theta_star_v;
-            delt_theta = 0.52 * std::pow(-1, j);
-            for(int i=0;i<3;i++){
+            d0 = d1;
+            delt_theta = 0.52 * std::pow(-1, j);  //30 degrees
+            for(int i=0;i<4;i++){
                 theta_v_1 = theta_v_1 + delt_theta;
                 if(theta_v_1 > theta_star_v + theta_v_range_delt_max || theta_v_1 < theta_star_v - theta_v_range_delt_max){
                     // Theta_v_1 out of range
+//                    ROS_WARN("Theta_v_1 out of range, theta_v_1=%f, theta_star_v=%f, theta_v_range_delt_max=%f", theta_v_1, theta_star_v, theta_v_range_delt_max);
                     break;
                 }
                 feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                                                     p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d1);
+//                ROS_INFO("Vertically Checking, i=%d, theta_v_1=%f, delt_theta=%f", i, theta_v_1, delt_theta);
+
                 if(feasible_flag > 0){
+                    ROS_WARN("Found vertically feasible path, p0(0)=%f, d1=%f, theta_h_1=%f, theta_v_1=%f", p0(0), d1, theta_h_1, theta_v_1);
                     break;
                 }else{
                     if(feasible_flag == -1){
@@ -994,30 +1010,63 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
                     delt_theta = (dist_threshold - d1) / diff_d;
                     delt_theta = std::min(delt_theta, delt_theta_max_v);
                     delt_theta = std::max(delt_theta, -delt_theta_max_v);
+                    if(fabs(delt_theta) < 0.05){
+                        if(delt_theta > 0) delt_theta = 0.05;
+                        else delt_theta = -0.05;
+                    }
+//                    ROS_INFO("AAA, delt_theta=%f, d0=%f, d1=%f", delt_theta, d0, d1);
                     d0 = d1;
                 }else{
-                    d0=d1;
+                    d0 = d1;
+//                    ROS_INFO("BBB, d0=%f", d0);
                 }
             }
             if(feasible_flag > 0){break;}
         }
     }
 
-    static double theta_h_chosen_last = 0.0;
     if(feasible_flag > 0){
-        theta_h_chosen = theta_h_1;
+        theta_h_chosen = theta_h_1;  //theta_h_chosen is used in head direction planning
         while(theta_h_chosen > PI){  //Transform to [-pi, pi]
             theta_h_chosen -= PIx2;
         }
         while(theta_h_chosen < -PI){
             theta_h_chosen += PIx2;
         }
-        theta_h_chosen_last = theta_h_chosen;
+        theta_h_last = theta_h_chosen;
+        theta_v_last = theta_v_1;
+
         ROS_INFO_THROTTLE(0.5, "Found feasible path. Feasible Code: %d, Spent times: Path infeasibility: %d, Close to obstacles: %d", feasible_flag, fail_reason_path_generate_counter, fail_reason_dist_counter);
     }else{
-        theta_h_chosen = theta_h_chosen_last;
+        theta_h_chosen = theta_h_last;
         ROS_WARN_THROTTLE(0.5, "Found no feasible path. Reason: Path infeasibility: %d, Close to obstacles: %d", fail_reason_path_generate_counter, fail_reason_dist_counter);
     }
+
+    /*** Code to calculate average sample times ***/
+    static long long total_times = 0;
+    static long long calculate_times = 0;
+    static long long total_failure_times_path_generate = 0;
+    static long long total_fail_reason_dist_counter = 0;
+    static double flight_start_time = ros::Time::now().toSec();
+
+    total_fail_reason_dist_counter += fail_reason_dist_counter;
+    total_failure_times_path_generate += fail_reason_path_generate_counter;
+    calculate_times += 1;
+
+    if(feasible_flag > 0){
+        total_times = total_times + fail_reason_dist_counter + fail_reason_path_generate_counter + 1;
+    }else{
+        total_times = total_times + fail_reason_dist_counter + fail_reason_path_generate_counter;
+    }
+    double avg_sample_times, avg_path_generate_failure_times, avg_dist_failure_times;
+    avg_sample_times = (double)total_times / calculate_times;
+    avg_path_generate_failure_times = (double)total_failure_times_path_generate / calculate_times;
+    avg_dist_failure_times = (double)total_fail_reason_dist_counter / calculate_times;
+
+    ROS_INFO_THROTTLE(0.5, "Current time=%f s, avg_sample_times=%f, avg_path_generate_failure_times=%f, avg_dist_failure_times=%f",
+            ros::Time::now().toSec()-flight_start_time,avg_sample_times, avg_path_generate_failure_times, avg_dist_failure_times);
+
+    /*** END ***/
 
     return feasible_flag;
 }
@@ -1205,12 +1254,12 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         Eigen::VectorXd t;
 
         if((send_traj_buffer_p[0] - p0).squaredNorm() < PLAN_INIT_STATE_CHANGE_THRESHOLD){
-            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.0,
+            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, send_traj_buffer_p[0], send_traj_buffer_v[0], send_traj_buffer_a[0],
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_INFO_THROTTLE(3.0, "### Continue to plan!");
         }else{
-            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.0,
+            collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, send_traj_buffer_p[0]*0.1 + p0*0.9, send_traj_buffer_v[0]*0.1+v0*0.9, a0,
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_INFO_THROTTLE(3.0, "### Track point too far, replan!");
@@ -1410,6 +1459,7 @@ void setPointSendCallback(){
             z_p_set = send_traj_buffer_p[buffer_send_counter](2);
             z_v_set = send_traj_buffer_v[buffer_send_counter](2);
             z_a_set = send_traj_buffer_a[buffer_send_counter](2);
+//            ROS_INFO("z_p_set=%f,z_v_set=%f,z_a_set=%f",z_p_set,z_v_set,z_a_set);
         } 
         else{
             z_p_set = p_goal(2);
@@ -1788,7 +1838,7 @@ int main(int argc, char** argv)
     getParameterList(nh);
 
     if(if_flyback_enable){
-        max_sample_delt_angle = 3.1;
+        max_sample_delt_angle = 2.09;
     }
 
     trajectory_time_table->csv2pva_table("/home/ubuntu/chg_workspace/rolling_head_ws_new/src/hybrid_local_map/secure_flying/others/p3-2_v1-5_a2_res0-1.csv");
@@ -1887,7 +1937,7 @@ int main(int argc, char** argv)
     }
 
     // timer for publish ringbuffer as pointcloud
-    ros::Timer timer1 = nh.createTimer(ros::Duration(0.2), cloudPubCallback); // RATE 3 Hz to publish
+    ros::Timer timer1 = nh.createTimer(ros::Duration(0.2), cloudPubCallback); // RATE 5 Hz to publish
 
     // timer for trajectory generation
     /// ***** don't excute this callback in data collection, chg
@@ -1912,25 +1962,24 @@ int main(int argc, char** argv)
 }
 
 
-
 void setParameters(){
-    p_goal(0) = 0.0;
-    p_goal(1)=6.0;
-    p_goal(2)=0.8;
+    p_goal(0) = 60.0;
+    p_goal(1)=0.0;
+    p_goal(2)=1.1;
     p_goal_raw = p_goal;
 
     MAX_V_XY = 1.5;
     MAX_V_Z_UP = 0.8;
     MAX_V_Z_DOWN = 0.4;
     MAX_A = 2.0;
-    pp.d_ref = 1.5;
+    pp.d_ref = 2.0;
     pp.k1_xy = 4.0;
     pp.k1_z = 4.0;
     pp.k2_xy = 1.0;
-    pp.k2_z = 1.5;
+    pp.k2_z = 1.0;
     pp.v_max_at_goal_ori = 0.3;
-    pp.collision_threshold_static = 0.6;
-    pp.collision_threshold_dynamic = 0.8;
+    pp.collision_threshold_static = 0.5;
+    pp.collision_threshold_dynamic = 0.6;
     hp.k_current_v = 0.7;
     hp.k_planned_direction = 0.2;
     hp.k_v_fluctuation = 0.4;
@@ -1948,12 +1997,12 @@ void setParameters(){
     motor_velocity_set = 40;
     if_plan_vertical_path = true;
     if_in_simulation = true;
-    if_flyback_enable = true;
+    if_flyback_enable = false;
     HEIGHT_LIMIT = 1.8;
     XY_LIMIT = 2.2;
     PLAN_INIT_STATE_CHANGE_THRESHOLD = 0.1;
     DIRECTION_CHANGE_LEFT_SIZE = 1.5;
-    DIRECTION_AUTO_CHANGE = true;
+    DIRECTION_AUTO_CHANGE = false;
     MAP_DELAY_SECONDS = 0.05;
 }
 
