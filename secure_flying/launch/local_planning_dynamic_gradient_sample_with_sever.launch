@@ -5,4 +5,6 @@
 	        command="load" 
 		/> 
 	</node>
+	<node pkg="wifi_transmitter" name="multi_thread_server_gg" type="multi_thread_server_gg" output="screen" respawn="true">
+	</node>
 </launch>
