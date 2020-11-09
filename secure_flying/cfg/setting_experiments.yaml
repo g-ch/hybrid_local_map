@@ -3,26 +3,26 @@ if_in_simulation: false
 
 # Parameters for initial goal position
 goal_position_x: 0.0  #0.0
-goal_position_y: 6.0 #6.0
+goal_position_y: 50.0 #6.0
 goal_position_z: 1.0  ##DOES NOT MATTER NOW. USE height when turned to OFFBOARD
 
 # Parameters for UAV path planning
-if_plan_vertical_path: false
+if_plan_vertical_path: true
 if_flyback_enable: false
-MAX_V_XY: 1.0 # 0.8 multiply 1.414 for xy combined limitation
-MAX_V_Z_UP: 1.0
-MAX_V_Z_DOWN: 1.0
-MAX_A: 1.5 #1.5
+MAX_V_XY: 3.0 # 0.8 multiply 1.414 for xy combined limitation
+MAX_V_Z_UP: 3.0
+MAX_V_Z_DOWN: 2.0
+MAX_A: 4.0 #1.5
 DIRECTION_AUTO_CHANGE: true
-DIRECTION_CHANGE_LEFT_SIZE: 1.3
-HEIGHT_LIMIT: 1.8
-XY_LIMIT: 2.2
-distance_reference_length: 1.4 #1.5 #2.1
+DIRECTION_CHANGE_LEFT_SIZE: 30
+HEIGHT_LIMIT: 2.0
+XY_LIMIT: 46
+distance_reference_length: 1.0 #1.5 #2.1
 toward_goal_k1_xy: 4.0 #2.0
 toward_goal_k1_z: 4.0  #2.0
 less_variation_k2_xy: 2.0
 less_variation_k2_z: 2.0 
-v_max_at_goal_ori: 0.3 #% 0.3 m/s, just reference for goal velocity, but important
+v_max_at_goal_ori: 0.5 #% 0.3 m/s, just reference for goal velocity, but important
 
 collision_threshold_static: 0.5
 collision_threshold_dynamic: 0.85
@@ -33,10 +33,10 @@ MAP_DELAY_SECONDS: 0.05
 
 #Parameters for head rotation planning
 k_current_v: 1.0
-k_planned_direction: 0.9
+k_planned_direction: 0.4
 k_v_fluctuation: 0.6
 k_dynamic_objects: 1.0
-k_common_update: 0.2
+k_common_update: 0.15
 
 #Parameters for tracker
 kp_xy: 0.18 #0.16

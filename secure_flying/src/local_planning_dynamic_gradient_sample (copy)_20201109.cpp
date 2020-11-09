@@ -55,7 +55,7 @@ const double trunc_distance = 1.0;
 static const int POW = 6;
 static const int N = (1 << POW);
 
-const float SEND_DURATION = 0.05f; //20Hz (10HZ at least)
+const float SEND_DURATION = 0.0250f; //40Hz (10HZ at least)
 
 ewok::EuclideanDistanceNormalRingBuffer<POW> rrb(resolution, trunc_distance); //Distance truncation threshold
 
@@ -125,7 +125,6 @@ ros::Publisher map_center_pub;
 ros::Publisher head_cmd_pub; // add on 9 Sept.
 ros::Publisher motor_pub;
 ros::Publisher pva_pub;  //add on 20 Aug. 2020
-ros::Publisher pose_sp_pub;
 
 ros::Publisher sim_trajectory_pub; // add on 7 Jan. 2020
 
@@ -214,7 +213,6 @@ void randomGoalGenerate();
 void setParameters();
 
 void setPointSend(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a);
-void setPointSendPositionControl(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a);
 
 /**********************FOR HSH TABLE***************************/
 // PVA table for feasible total planning time T
@@ -774,7 +772,7 @@ int generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p
 
     T = T1 > T2 ? T1 : T2;
     T = T > T3 ? T : T3;
-    T *= 1.0;
+    T *= 1.2;
     T = T < 0.5 ? 0.5 : T;
 
     int times = T / delt_t;
@@ -1268,9 +1266,8 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         if(collision_check_pass_flag > 0){
             safe_trajectory_avaliable = true;
 
-            int send_seq = 9;
-            if(send_seq >= p.rows()) send_seq = p.rows()-1;
-            setPointSendPositionControl(p.row(send_seq), v.row(send_seq), a.row(send_seq));  ///SEND
+            int send_seq = 1;
+            setPointSend(p.row(send_seq), v.row(send_seq), a.row(send_seq));  ///SEND
             last_sended_p = p.row(send_seq);
             last_sended_v = v.row(send_seq);
             last_sended_a = a.row(send_seq);
@@ -1291,7 +1288,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         }else{
 
             ROS_WARN_THROTTLE(3.0, "No valid trajectory found! Trapped in safety mode!");
-            setPointSendPositionControl(p0, v0, a0);  ///SEND 
+            setPointSend(p0, v0, a0);  ///SEND 
             safe_trajectory_avaliable = false;
 
             // Publish points of stored point to show
@@ -1482,58 +1479,6 @@ void setPointSend(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a){
     }
 
     pva_pub.publish(pva_setpoint);
-}
-
-
-void setPointSendPositionControl(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a){
-    static Eigen::Vector3f p_store_for_em;
-    
-    static bool init_flag = true;
-    if(init_flag){
-        p_store_for_em << p0(0), p0(1), p0(2);
-        init_flag = false;
-    }
-
-    static double def_ori = pp.d_ref;
-    
-    geometry_msgs::PoseStamped pose_sp;
-    pose_sp.pose.orientation.w = cos(PI_2/2.0);
-    pose_sp.pose.orientation.x = 0.0;
-    pose_sp.pose.orientation.y = 0.0;
-    pose_sp.pose.orientation.z = sin(PI_2/2.0);
-
-
-    if(safe_trajectory_avaliable){
-        pp.d_ref = def_ori;
-
-        float z_p_set, z_v_set, z_a_set;
-        if(if_plan_vertical_path){
-            z_p_set = p(2);
-            z_v_set = v(2);
-            z_a_set = a(2);
-        }
-        else{
-            z_p_set = p_goal(2);
-            z_v_set = 0.f;
-            z_a_set = 0.f;
-        } 
-
-        // NWU to ENU
-        pose_sp.pose.position.x = -p(1);
-        pose_sp.pose.position.y = p(0);
-        pose_sp.pose.position.z = p(2);
-
-        p_store_for_em << p0(0), p0(1), p0(2);
-    }else{  //emergency stop
-        pp.d_ref = 0.5;
-
-        pose_sp.pose.position.x = -p_store_for_em(1);
-        pose_sp.pose.position.y = p_store_for_em(0);
-        pose_sp.pose.position.z = p_store_for_em(2);
-
-    }
-
-    pose_sp_pub.publish(pose_sp);
 }
 
 void positionCallback(const geometry_msgs::PoseStamped& msg)
@@ -1978,7 +1923,6 @@ int main(int argc, char** argv)
         sync_->registerCallback(boost::bind(&cloudCallback, _1, _2));
 
         head_cmd_pub = nh.advertise<geometry_msgs::Point32>("/gimbal_commands", 2, true); 
-        pose_sp_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_position/local", 1);
         // cmd_vel_pub = nh.advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 2, true); 
 
     }else{
