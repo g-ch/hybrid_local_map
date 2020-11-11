@@ -79,9 +79,9 @@ void displayTimer(const ros::TimerEvent& e)
         double delt_value = (max_value - min_value) / 250;
         cv::Point start_point = cv::Point(center.x, center.y + size_one_pannel);
         cv::Point text_place = cv::Point(start_point.x - 50, start_point.y + 20);
-        cv::putText(background, vector_i.first, text_place, CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
-        cv::putText(background, "Max:"+std::to_string(max_value), cv::Point(text_place.x, text_place.y+20), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
-        cv::putText(background, " Min:"+std::to_string(min_value), cv::Point(text_place.x, text_place.y+40), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
+        cv::putText(background, vector_i.first, text_place, cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
+        cv::putText(background, "Max:"+std::to_string(max_value), cv::Point(text_place.x, text_place.y+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
+        cv::putText(background, " Min:"+std::to_string(min_value), cv::Point(text_place.x, text_place.y+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0, 255));
 
         /// Draw triangles
         for(int i=0; i<num; i++)

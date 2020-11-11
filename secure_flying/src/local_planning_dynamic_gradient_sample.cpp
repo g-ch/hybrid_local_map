@@ -40,6 +40,7 @@
 #include <fstream>
 #include <cstdint>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
+#include <yolo_ros_real_pose/RealPose.h>
 
 using namespace message_filters;
 using namespace std;
@@ -125,6 +126,7 @@ ros::Publisher map_center_pub;
 ros::Publisher head_cmd_pub; // add on 9 Sept.
 ros::Publisher motor_pub;
 ros::Publisher pva_pub;  //add on 20 Aug. 2020
+ros::Publisher board_pos_pub;
 
 ros::Publisher sim_trajectory_pub; // add on 7 Jan. 2020
 
@@ -192,6 +194,8 @@ double motor_velocity_set = 50.0;
 
 double init_head_yaw = 0.0;
 
+/** Variables for competition **/
+Eigen::Vector3d board_relative_position;
 
 /** Publishers for cost visualization **/
 bool if_publish_panel_arrays = true;
@@ -605,25 +609,25 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     //std::cout << "Map insert time = " << insert_t << " s" << std::endl;
 
     /** Remove map points around dynamic objects **/
-    Eigen::Vector3f cube_size_to_remove_person;
-    cube_size_to_remove_person << 0.6, 0.6, 2.4;
-    for(auto & ob_i : dynamic_objects.result){
-        Eigen::Vector3f ob_position;
-        ob_position <<  ob_i.position.x - ob_i.velocity.x*MAP_DELAY_SECONDS,  // voxels in map were built slower than the dynamic obstacles were detected
-                        ob_i.position.y - ob_i.velocity.y*MAP_DELAY_SECONDS,
-                        ob_i.position.z - ob_i.velocity.z*MAP_DELAY_SECONDS;
-        ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_object_cube;
-        cubePointCloudGenerator(ob_position, cube_size_to_remove_person, resolution, cloud_object_cube);
-        rrb.removePointCloud(cloud_object_cube, ob_position);
-    }
+    // Eigen::Vector3f cube_size_to_remove_person;
+    // cube_size_to_remove_person << 0.6, 0.6, 2.4;
+    // for(auto & ob_i : dynamic_objects.result){
+    //     Eigen::Vector3f ob_position;
+    //     ob_position <<  ob_i.position.x - ob_i.velocity.x*MAP_DELAY_SECONDS,  // voxels in map were built slower than the dynamic obstacles were detected
+    //                     ob_i.position.y - ob_i.velocity.y*MAP_DELAY_SECONDS,
+    //                     ob_i.position.z - ob_i.velocity.z*MAP_DELAY_SECONDS;
+    //     ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_object_cube;
+    //     cubePointCloudGenerator(ob_position, cube_size_to_remove_person, resolution, cloud_object_cube);
+    //     rrb.removePointCloud(cloud_object_cube, ob_position);
+    // }
 
-     Eigen::Vector3f cube_size_to_remove_uav;
-     cube_size_to_remove_uav << 1.0, 1.0, 1.2;
-     Eigen::Vector3f uav_position;
-     uav_position << p0(0), p0(1), p0(2);
-     ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_uav_cube;
-     cubePointCloudGenerator(uav_position, cube_size_to_remove_uav, resolution, cloud_uav_cube);
-     rrb.removePointCloud(cloud_uav_cube, uav_position);
+    //  Eigen::Vector3f cube_size_to_remove_uav;
+    //  cube_size_to_remove_uav << 1.0, 1.0, 1.2;
+    //  Eigen::Vector3f uav_position;
+    //  uav_position << p0(0), p0(1), p0(2);
+    //  ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_uav_cube;
+    //  cubePointCloudGenerator(uav_position, cube_size_to_remove_uav, resolution, cloud_uav_cube);
+    //  rrb.removePointCloud(cloud_uav_cube, uav_position);
     // /** End Remove  **/
 
 
@@ -1408,7 +1412,8 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         }
 
         /** End of visualization **/
-        sendMotorCommands(yaw_to_send); //send to motor
+        /// This head control is not used in competition.
+        // sendMotorCommands(yaw_to_send); //send to motor
 
         last_head_yaw_plan = yaw_to_send;
     }
@@ -1556,14 +1561,6 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     	if(fabs(v0(1)) < 0.05) v0(1) = 0.0;  //add a dead zone for v0 used in motion primatives
     	if(fabs(v0(2)) < 0.05) v0(2) = 0.0;  //add a dead zone for v0 used in motion primatives
 
-//        for(int i=0; i<3; i++){
-//            if(v0(i) < -MAX_V_XY){
-//                v0(i) = -MAX_V_XY;
-//            }else if(v0(i) > MAX_V_XY){
-//                v0(i) = MAX_V_XY;
-//            }
-//        }
-
     	/** Calculate virtual accelerates from velocity. Original accelerates given by px4 is too noisy **/
         static bool init_v_flag = true;
     	static double last_time, last_vx, last_vy, last_vz;
@@ -1580,14 +1577,6 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     		if(fabs(a0(0)) < 0.1) a0(0) = 0.0;  //dead zone for acc x
      		if(fabs(a0(1)) < 0.1) a0(1) = 0.0; //dead zone for acc y
     		if(fabs(a0(2)) < 0.1) a0(2) = 0.0; //dead zone for acc z
-
-//            for(int i=0; i<3; i++){
-//                if(a0(i) < -MAX_A){
-//                    a0(i) = -MAX_A;
-//                }else if(a0(i) > MAX_A){
-//                    a0(i) = MAX_A;
-//                }
-//            }
 
     	}
 
@@ -1713,23 +1702,69 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
 }
 
 
-
-void dynamicObjectsCallback(const hist_kalman_mot::ObjectsInTracking &msg)
+void yellowBoardCallback(const yolo_ros_real_pose::RealPose &msg)
 {
-    dynamic_objects = msg;
-    if(!use_position_global_time){
-        global_time_now = ros::Time::now().toSec();
-    }
-    /// Update the position of dynamic objects by predicting with a linear model. The position is then treated as the center of position distribution
-    for(auto & ob_i : dynamic_objects.result){
-        double time_interval = global_time_now - ob_i.last_observed_time;
-        ob_i.position.x = ob_i.position.x + ob_i.velocity.x * time_interval;
-        ob_i.position.y = ob_i.position.y + ob_i.velocity.y * time_interval;
-        ob_i.position.z = ob_i.position.z + ob_i.velocity.z * time_interval;
-        double delt_t = global_time_now - ob_i.last_observed_time;
-        // ob_i.sigma = ob_i.sigma * 0.25 * delt_t * delt_t; //something wrong
-    }
+    Eigen::Quaternionf axis_motor, quad_uav;
+    axis_motor.w() = cos(msg.head_yaw/2.0);
+    axis_motor.x() = 0;
+    axis_motor.y() = 0;
+    axis_motor.z() = sin(msg.head_yaw/2.0);
+    quad_uav.w() = msg.local_pose.orientation.w;
+    quad_uav.x() = msg.local_pose.orientation.x;
+    quad_uav.y() = msg.local_pose.orientation.y;
+    quad_uav.z() = msg.local_pose.orientation.z;
+
+    Eigen::Quaternionf axis; //= quad * q1 * quad.inverse();
+    axis.w() = cos(-PI_2/2.0);
+    axis.x() = 0.0;
+    axis.y() = 0.0;
+    axis.z() = sin(-PI_2/2.0);
+    quad_uav = quad_uav * axis;
+
+    Eigen::Quaternionf quad_rotate =quad_uav * axis_motor;
+
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    transform.block(0,0,3,3) = Eigen::Matrix3f(quad_rotate);
+    transform(0,3) = msg.local_pose.position.y;  //ENU to NWU
+    transform(1,3) = -msg.local_pose.position.x;
+    transform(2,3) = msg.local_pose.position.z;
+
+    Eigen::Matrix4f t_c_b = Eigen::Matrix4f::Zero();
+    t_c_b(0,2) = 1;
+    t_c_b(1,0) = -1;
+    t_c_b(2,1) = -1;
+    t_c_b(3,3) = 1;
+
+    Eigen::Vector4f pose_ori, pose_global;
+    pose_ori << msg.x, msg.y, msg.z, 1.f;
+    pose_global = t_c_b * pose_ori;
+    pose_global = transform * pose_ori;
+
+    geometry_msgs::Point32 corrected_position;
+    corrected_position.x = pose_global(0);
+    corrected_position.y = pose_global(1);
+    corrected_position.z = pose_global(2);
+    board_pos_pub.publish(corrected_position);
+    board_relative_position << corrected_position.x, corrected_position.y, corrected_position.z;
+    ROS_INFO_THROTTLE(0.1, "pose_global=(%f, %f, %f)", pose_global(0), pose_global(1), pose_global(2));
 }
+
+// void dynamicObjectsCallback(const hist_kalman_mot::ObjectsInTracking &msg)
+// {
+//     dynamic_objects = msg;
+//     if(!use_position_global_time){
+//         global_time_now = ros::Time::now().toSec();
+//     }
+//     /// Update the position of dynamic objects by predicting with a linear model. The position is then treated as the center of position distribution
+//     for(auto & ob_i : dynamic_objects.result){
+//         double time_interval = global_time_now - ob_i.last_observed_time;
+//         ob_i.position.x = ob_i.position.x + ob_i.velocity.x * time_interval;
+//         ob_i.position.y = ob_i.position.y + ob_i.velocity.y * time_interval;
+//         ob_i.position.z = ob_i.position.z + ob_i.velocity.z * time_interval;
+//         double delt_t = global_time_now - ob_i.last_observed_time;
+//         // ob_i.sigma = ob_i.sigma * 0.25 * delt_t * delt_t; //something wrong
+//     }
+// }
 
 void uavModeCallback(const mavros_msgs::State &msg)
 {
@@ -1824,7 +1859,7 @@ int main(int argc, char** argv)
         max_sample_delt_angle = 1.67;
     }
 
-    trajectory_time_table->csv2pva_table("/home/topup/chg_ws/src/tables/p3-84_v3_a4_res0-1.csv");
+    trajectory_time_table->csv2pva_table("/home/up/catkin_ws/src/hybrid_local_map/others/p5_v1_a2_res0-1.csv");
     ROS_WARN("trajectory_time_table loaded!");
 
     // State parameters initiate
@@ -1861,7 +1896,11 @@ int main(int argc, char** argv)
     current_marker_pub = nh.advertise<visualization_msgs::Marker>("/visualization_marker", 1);
 
     motor_pub = nh.advertise<geometry_msgs::Point32>("/place_velocity_info_corrected", 1, true); 
-    ros::Subscriber dynamic_objects_sub = nh.subscribe("/mot/objects_in_tracking", 1, dynamicObjectsCallback);
+
+    //ros::Subscriber dynamic_objects_sub = nh.subscribe("/mot/objects_in_tracking", 1, dynamicObjectsCallback);
+    board_pos_pub = nh.advertise<geometry_msgs::Point32>("/board_pos", 1, true); 
+    ros::Subscriber board_pose_sub = nh.subscribe("/yolo_ros_real_pose/detected_object", 1, yellowBoardCallback);
+
     pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
 
     ros::Subscriber mode_sub, position_isolate_sub, velocity_isolate_sub, motor_sub, cloud_sub, sim_odom_isolate_sub;

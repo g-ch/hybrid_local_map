@@ -9,10 +9,10 @@ goal_position_z: 1.0  ##DOES NOT MATTER NOW. USE height when turned to OFFBOARD
 # Parameters for UAV path planning
 if_plan_vertical_path: true
 if_flyback_enable: false
-MAX_V_XY: 3.0 # 0.8 multiply 1.414 for xy combined limitation
+MAX_V_XY: 1.0 # 0.8 multiply 1.414 for xy combined limitation
 MAX_V_Z_UP: 1.0
 MAX_V_Z_DOWN: 1.0
-MAX_A: 4.0 #1.5
+MAX_A: 2.0 #1.5
 DIRECTION_AUTO_CHANGE: true
 DIRECTION_CHANGE_LEFT_SIZE: 10
 HEIGHT_LIMIT: 1.8
@@ -22,9 +22,9 @@ toward_goal_k1_xy: 4.0 #2.0
 toward_goal_k1_z: 4.0  #2.0
 less_variation_k2_xy: 2.0
 less_variation_k2_z: 2.0 
-v_max_at_goal_ori: 1.5 #% 0.3 m/s, just reference for goal velocity, but important
+v_max_at_goal_ori: 0.3 #% 0.3 m/s, just reference for goal velocity, but important
 
-collision_threshold_static: 0.6
+collision_threshold_static: 0.4
 collision_threshold_dynamic: 0.85
 
 PLAN_INIT_STATE_CHANGE_THRESHOLD: 0.15  #0.15
