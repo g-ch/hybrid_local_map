@@ -2,8 +2,8 @@
 if_in_simulation: false
 
 # Parameters for initial goal position
-goal_position_x: 0.0  #0.0
-goal_position_y: 15.0 #6.0
+goal_position_x: 2.0  #0.0
+goal_position_y: 3.0 #6.0
 goal_position_z: 1.0  ##DOES NOT MATTER NOW. USE height when turned to OFFBOARD
 
 # Parameters for UAV path planning
@@ -22,9 +22,9 @@ toward_goal_k1_xy: 4.0 #2.0
 toward_goal_k1_z: 4.0  #2.0
 less_variation_k2_xy: 2.0
 less_variation_k2_z: 2.0 
-v_max_at_goal_ori: 0.3 #% 0.3 m/s, just reference for goal velocity, but important
+v_max_at_goal_ori: 0.0 #% 0.3 m/s, just reference for goal velocity, but important
 
-collision_threshold_static: 0.4
+collision_threshold_static: 0.35
 collision_threshold_dynamic: 0.85
 
 PLAN_INIT_STATE_CHANGE_THRESHOLD: 0.15  #0.15

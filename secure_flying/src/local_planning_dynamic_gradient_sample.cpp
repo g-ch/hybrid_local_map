@@ -116,10 +116,78 @@ struct  Position_Tracker_Parameters
 float MAP_DELAY_SECONDS = 0.05;
 const int point_num_pub = 5; // For the visualization of current planned trajectory
 
+
+//Lists for competition
+bool if_fake_offboard = false;
+
+const int check_points_num = 18;
+const int circle_num = 6;
+const double d_qian = 1.5;
+const double d_hou = 0.8;
+Eigen::Vector3d p_offset;
+
+
+double circles[circle_num][3] = {
+    2.5, -1.5, 1.35,
+    4.7, -2.9, 1.45,
+    6.82,-1.15,1.55,
+    9.6,2.75,1.6,
+    13.0,2.0,1.6,
+    18.8,-1.6, 1.75 
+};
+double board_height[circle_num] = {
+    0.5,
+    0.6,
+    0.9,
+    0.7,
+    0.9,
+    1.0
+};
+
+// double circles[circle_num][3] = {
+//     1.9, -1.13, 1.6,
+//     3.6, -2.58, 1.6,
+//     5.8, -0.3,1.6,
+//     9.6,2.75,1.6,
+//     13.0,2.0,1.6,
+//     18.8,-1.6, 1.75 
+// };
+// double board_height[circle_num] = {
+//     0.8,
+//     1.0,
+//     1.0,
+//     0.7,
+//     0.9,
+//     1.0
+// };
+
+
+double check_points[check_points_num][3];
+double head_directions[check_points_num];
+double check_points_init_ref_length[check_points_num];
+int offset_given_list[circle_num] = {
+    0,
+    0,
+    6,
+    9,
+    12,
+    15
+};
+
+int check_point_counter = 0;
+
+bool if_check_update_offset(int num){
+    for(int i=0; i<circle_num; i++){
+        if(num == offset_given_list[i]) return true;
+    }
+    return false;
+}
+
+
 /*** End of Parameters ***/
 
 /** Basic global variables **/
-ros::Publisher current_marker_pub;
+ros::Publisher current_marker_pub, current_goal_pub;
 ros::Publisher cloud2_pub, cloud_edf_pub, goal_pub;
 ros::Publisher map_center_pub;
 
@@ -195,7 +263,7 @@ double motor_velocity_set = 50.0;
 double init_head_yaw = 0.0;
 
 /** Variables for competition **/
-Eigen::Vector3d board_relative_position;
+Eigen::Vector3d board_global_position;
 
 /** Publishers for cost visualization **/
 bool if_publish_panel_arrays = true;
@@ -210,7 +278,7 @@ ros::Publisher cost_head_final_pub;
 
 void sendMotorCommands(double yaw);
 
-void randomGoalGenerate();
+void goalGenerate(int goal_num);
 
 void setParameters();
 
@@ -496,7 +564,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
         if(time_stamp_pose >= cloud->header.stamp.toSec()){
             quad_sychronized = att_queue.front();
             current_position = pos_queue.front();
-            ROS_INFO_THROTTLE(3.0, "cloud mismatch time = %lf", cloud->header.stamp.toSec() - time_stamp_pose);
+            // ROS_INFO_THROTTLE(3.0, "cloud mismatch time = %lf", cloud->header.stamp.toSec() - time_stamp_pose);
             break;
         }
         pose_timestamp_queue.pop();
@@ -636,7 +704,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     rrb.updateDistance();
 
     double elp = ros::Time::now().toSec() - _data_input_time.toSec();
-    ROS_INFO_STREAM_THROTTLE(3.0, "Map update time = " << elp << " s");
+    // ROS_INFO_STREAM_THROTTLE(3.0, "Map update time = " << elp << " s");
 
     /* Update buffer for rolling head */
     double head_update_start_time = ros::Time::now().toSec();
@@ -644,7 +712,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
 //    std::cout << "heading_direction_seq=" << heading_direction_seq << std::endl;
     updateHeadBuffer(heading_direction_seq);
     double head_update_time = ros::Time::now().toSec() - head_update_start_time;
-    ROS_INFO_THROTTLE(3.0, "SUD update time = %lf", head_update_time);
+    // ROS_INFO_THROTTLE(3.0, "SUD update time = %lf", head_update_time);
 
 //    std::cout << "Head buffer update time = " << head_up << " s" << std::endl;
 
@@ -1038,10 +1106,10 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
         theta_h_last = theta_h_chosen;
         theta_v_last = theta_v_1;
 
-        ROS_INFO_THROTTLE(0.5, "Found feasible path. Feasible Code: %d, Spent times: Path infeasibility: %d, Close to obstacles: %d", feasible_flag, fail_reason_path_generate_counter, fail_reason_dist_counter);
+        // ROS_INFO_THROTTLE(0.5, "Found feasible path. Feasible Code: %d, Spent times: Path infeasibility: %d, Close to obstacles: %d", feasible_flag, fail_reason_path_generate_counter, fail_reason_dist_counter);
     }else{
         theta_h_chosen = theta_h_last;
-        ROS_WARN_THROTTLE(0.5, "Found no feasible path. Reason: Path infeasibility: %d, Close to obstacles: %d", fail_reason_path_generate_counter, fail_reason_dist_counter);
+        ROS_WARN_THROTTLE(2.0, "Found no feasible path. Reason: Path infeasibility: %d, Close to obstacles: %d", fail_reason_path_generate_counter, fail_reason_dist_counter);
     }
 
     /*** Code to calculate average sample times ***/
@@ -1065,8 +1133,8 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
     avg_path_generate_failure_times = (double)total_failure_times_path_generate / calculate_times;
     avg_dist_failure_times = (double)total_fail_reason_dist_counter / calculate_times;
 
-    ROS_INFO_THROTTLE(0.5, "Current time=%f s, avg_sample_times=%f, avg_path_generate_failure_times=%f, avg_dist_failure_times=%f",
-            ros::Time::now().toSec()-flight_start_time,avg_sample_times, avg_path_generate_failure_times, avg_dist_failure_times);
+    // ROS_INFO_THROTTLE(0.5, "Current time=%f s, avg_sample_times=%f, avg_path_generate_failure_times=%f, avg_dist_failure_times=%f",
+            // ros::Time::now().toSec()-flight_start_time,avg_sample_times, avg_path_generate_failure_times, avg_dist_failure_times);
 
     /*** END ***/
 
@@ -1091,7 +1159,12 @@ void marker_publish(Eigen::MatrixXd &Points)
 
     // Line width
     points.scale.x = 0.1;
+    points.scale.y = 0.1;
+    points.scale.z = 0.1;
     goal_strip.scale.x = 0.05;
+    goal_strip.scale.y = 0.05;
+    goal_strip.scale.z = 0.05;
+
 
     // points are green
     points.color.g = 1.0;
@@ -1136,7 +1209,7 @@ void marker_publish(Eigen::MatrixXd &Points)
     p2.y = p_goal(1);
     p2.z = p_goal(2);
     goal_strip.points.push_back(p2);
-    current_marker_pub.publish(goal_strip);
+    current_goal_pub.publish(goal_strip);
 }
 
 
@@ -1246,7 +1319,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         v_scale = (v0.norm() == 0) ? pp.v_scale_min : v_scale;
         double v_final = pp.v_max_at_goal_ori * v_scale;
 
-        ROS_INFO_THROTTLE(1, "v_final=%f", v_final);
+        // ROS_INFO_THROTTLE(1, "v_final=%f", v_final);
 
         Eigen::MatrixXd p;
         Eigen::MatrixXd v;
@@ -1257,7 +1330,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
             collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, last_sended_p, last_sended_v, last_sended_a,
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
-            ROS_INFO_THROTTLE(3.0, "### Continue to plan!");
+            // ROS_INFO_THROTTLE(3.0, "### Continue to plan!");
         }else{
             collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
                                                                pp.k1_xy, pp.k2_xy, SEND_DURATION, last_sended_p*0.1 + p0*0.9, last_sended_v*0.1+v0*0.9, a0,
@@ -1302,7 +1375,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
     }
 
     double algo_time = ros::Time::now().toSec() - algorithm_start_time;
-    ROS_INFO_THROTTLE(3.0, "path planning algorithm time is: %lf", algo_time);
+    // ROS_INFO_THROTTLE(3.0, "path planning algorithm time is: %lf", algo_time);
 
     /** Generate trajectory for rotating head **/
     static double last_head_yaw_plan = 0.0;
@@ -1313,7 +1386,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
     if(first_head_control_flag){
         if(motor_initialized){
             first_head_control_flag = false;
-            sendMotorCommands(0.0);
+            // sendMotorCommands(0.0);
         }
     }
     else{
@@ -1399,7 +1472,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
             }
         }
         double head_planning_update_time = ros::Time::now().toSec() - head_planning_start_time;
-        ROS_INFO_THROTTLE(3.0, "head planning algorithm time is: %lf", head_planning_update_time);
+        // ROS_INFO_THROTTLE(3.0, "head planning algorithm time is: %lf", head_planning_update_time);
 
         /*** For visualization **/
         if(if_publish_panel_arrays){
@@ -1428,13 +1501,16 @@ void setPointSend(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a){
         p_store_for_em << p0(0), p0(1), p0(2);
         init_flag = false;
     }
-
-    static double def_ori = pp.d_ref;
     
     trajectory_msgs::JointTrajectoryPoint pva_setpoint;
 
     if(safe_trajectory_avaliable){
-        pp.d_ref = def_ori;
+
+        double distance_to_goal = (p_goal - p0).norm();
+        if(distance_to_goal < pp.d_ref + 0.5){
+            pp.d_ref = distance_to_goal - 0.5;
+        }
+        if(pp.d_ref < 0.1) pp.d_ref = 0.1;
 
         float z_p_set, z_v_set, z_a_set;
         if(if_plan_vertical_path){
@@ -1527,22 +1603,48 @@ void positionCallback(const geometry_msgs::PoseStamped& msg)
         state_updating = false;
     }
 
+
+    static bool fake_mode_initialzed = false;
+    if(!fake_mode_initialzed && if_fake_offboard){
+        init_p = p0;  //record a base point
+        check_point_counter = 0;
+        goalGenerate(check_point_counter);
+        fake_mode_initialzed = true;
+    }
+
     if(!offboard_ready){
         init_p = p0;  //record a base point
-        p_goal(0) = p_goal_raw(0) + init_p(0);
-        p_goal(1) = p_goal_raw(1) + init_p(1);
-        p_goal(2) = init_p(2);
+        // p_goal(0) = p_goal_raw(0) + init_p(0);
+        // p_goal(1) = p_goal_raw(1) + init_p(1);
+        // p_goal(2) = init_p(2);
+        check_point_counter = 0;
+        p_offset << 0, 0, 0;
+        goalGenerate(check_point_counter);
         ROS_INFO_THROTTLE(1.0, "Waiting for offboard mode. p_goal = %f, %f, %f", p_goal(0), p_goal(1), p_goal(2));
+        
+
     }else{
         ROS_INFO_THROTTLE(1.0, "IN offboard mode. pgoal = %f, %f, %f", p_goal(0), p_goal(1), p_goal(2));
+        if((p0 - p_goal).norm() < 0.3){
+            ROS_WARN("Goal Arrived!");
+
+            if(if_check_update_offset(check_point_counter)){  ///correct offset only on x and y axis
+                double offset_this_x = board_global_position(0) - p_goal(0) - d_qian;
+                double offset_this_y = board_global_position(1) - p_goal(1);
+                if(fabs(offset_this_x) < 1.2) p_offset(0) += offset_this_x;
+                if(fabs(offset_this_y) < 1.2) p_offset(1) += offset_this_y;
+                ROS_ERROR("p_goal = (%f,%f)", p_goal(0), p_goal(1));
+                ROS_ERROR("p0 = (%f,%f)", p0(0), p0(1));
+                ROS_ERROR("board_global_position-p0 = (%f,%f)", board_global_position(0) - p0(0), board_global_position(1) - p0(1));
+
+            }
+
+            check_point_counter += 1;
+            goalGenerate(check_point_counter);
+        }
     }
 
-    ROS_INFO_THROTTLE(1.0, "Current pose. p0 = %f, %f, %f", p0(0), p0(1), p0(2));
-
-    if(fabs(p0(1) - init_p(1))>DIRECTION_CHANGE_LEFT_SIZE && (p0(1)-init_p(1))*(p_goal(1)-init_p(1)) > 0 && DIRECTION_AUTO_CHANGE){
-    //if(fabs(p0(1))>DIRECTION_CHANGE_LEFT_SIZE && p0(1)*p_goal(1) > 0 && DIRECTION_AUTO_CHANGE){
-        randomGoalGenerate();
-    }
+    // ROS_INFO_THROTTLE(1.0, "Current pose. p0 = %f, %f, %f", p0(0), p0(1), p0(2));
 }
 
 void velocityCallback(const geometry_msgs::TwistStamped& msg)
@@ -1591,22 +1693,19 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     }
 }
 
-default_random_engine random_generator;
-uniform_real_distribution<double> x_distribution(-2.0, 2.0);
-uniform_real_distribution<double> z_distribution(0.7, 1.5);
-void randomGoalGenerate()
+
+void goalGenerate(int goal_num)
 {
     ROS_WARN("Last Goal = (%f, %f, %f)", p_goal(0), p_goal(1), p_goal(2));
 
-    p_goal(0) = x_distribution(random_generator) + init_p(0);
-    // p_goal(0) = init_p(0);
-    // p_goal(2) = z_distribution(random_generator);  ///CHG!! 20200820  banned random generation of p_goal(2)
+    Eigen::Vector3d pT;
+    pT << check_points[goal_num][0], check_points[goal_num][1], check_points[goal_num][2];
+    p_goal = init_p + pT + p_offset;
+    p_goal(2) = check_points[goal_num][2];
+    
 
-    if(p0(1) > 0){
-        p_goal(1) = -Y_GOAL_TO_CENTER + init_p(1);
-    }else{
-        p_goal(1) = Y_GOAL_TO_CENTER + init_p(1);
-    }
+    pp.d_ref = check_points_init_ref_length[goal_num];
+    ROS_ERROR("goal_num=%d, p_offset=(%f,%f)", goal_num, p_offset(0), p_offset(1));
 
     //publish center
     geometry_msgs::PointStamped goal_p;
@@ -1619,6 +1718,7 @@ void randomGoalGenerate()
 
     ROS_WARN("New Goal = (%f, %f, %f)", p_goal(0), p_goal(1), p_goal(2));
 }
+
 
 void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
 {
@@ -1649,6 +1749,7 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
         if(init_p_flag){
             init_p = p0;
             init_p_flag = false;
+            goalGenerate(check_point_counter);
         }
 
         /// Update yaw0 here, should be among [-PI, PI] 
@@ -1697,56 +1798,72 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
     }
 
     if(fabs(p0(1))>DIRECTION_CHANGE_LEFT_SIZE && (p0(1))*(p_goal(1)) > 0 && DIRECTION_AUTO_CHANGE){
-        randomGoalGenerate();
+        check_point_counter += 1;
+        goalGenerate(check_point_counter);
     }
 }
 
 
 void yellowBoardCallback(const yolo_ros_real_pose::RealPose &msg)
 {
-    Eigen::Quaternionf axis_motor, quad_uav;
-    axis_motor.w() = cos(msg.head_yaw/2.0);
-    axis_motor.x() = 0;
-    axis_motor.y() = 0;
-    axis_motor.z() = sin(msg.head_yaw/2.0);
-    quad_uav.w() = msg.local_pose.orientation.w;
-    quad_uav.x() = msg.local_pose.orientation.x;
-    quad_uav.y() = msg.local_pose.orientation.y;
-    quad_uav.z() = msg.local_pose.orientation.z;
 
-    Eigen::Quaternionf axis; //= quad * q1 * quad.inverse();
-    axis.w() = cos(-PI_2/2.0);
-    axis.x() = 0.0;
-    axis.y() = 0.0;
-    axis.z() = sin(-PI_2/2.0);
-    quad_uav = quad_uav * axis;
+    double x = msg.z;
+    double y = -msg.x;
+    double z = -msg.y;
 
-    Eigen::Quaternionf quad_rotate =quad_uav * axis_motor;
+    Eigen::Vector3d pose_global;
+    pose_global(0) = msg.local_pose.position.y + x*cos(msg.head_yaw) - y*sin(msg.head_yaw);
+    pose_global(1) = -msg.local_pose.position.x + x*sin(msg.head_yaw) + y*cos(msg.head_yaw);
+    pose_global(2) = msg.local_pose.position.z + z;
 
-    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-    transform.block(0,0,3,3) = Eigen::Matrix3f(quad_rotate);
-    transform(0,3) = msg.local_pose.position.y;  //ENU to NWU
-    transform(1,3) = -msg.local_pose.position.x;
-    transform(2,3) = msg.local_pose.position.z;
 
-    Eigen::Matrix4f t_c_b = Eigen::Matrix4f::Zero();
-    t_c_b(0,2) = 1;
-    t_c_b(1,0) = -1;
-    t_c_b(2,1) = -1;
-    t_c_b(3,3) = 1;
 
-    Eigen::Vector4f pose_ori, pose_global;
-    pose_ori << msg.x, msg.y, msg.z, 1.f;
-    pose_global = t_c_b * pose_ori;
-    pose_global = transform * pose_ori;
+    // Eigen::Quaternionf axis_motor, quad_uav;
+    // axis_motor.w() = cos(msg.head_yaw/2.0);
+    // axis_motor.x() = 0;
+    // axis_motor.y() = 0;
+    // axis_motor.z() = sin(msg.head_yaw/2.0);
+    // quad_uav.w() = msg.local_pose.orientation.w;
+    // quad_uav.x() = msg.local_pose.orientation.x;
+    // quad_uav.y() = msg.local_pose.orientation.y;
+    // quad_uav.z() = msg.local_pose.orientation.z;
+
+    // Eigen::Quaternionf axis; //= quad * q1 * quad.inverse();
+    // axis.w() = cos(PI_2/2.0);
+    // axis.x() = 0.0;
+    // axis.y() = 0.0;
+    // axis.z() = sin(PI_2/2.0);
+    // quad_uav = quad_uav * axis; //ENU to NWU
+
+    // Eigen::Quaternionf quad_rotate =quad_uav * axis_motor;
+
+    // Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    // transform.block(0,0,3,3) = Eigen::Matrix3f(quad_rotate);
+    // transform(0,3) = msg.local_pose.position.y;  //ENU to NWU
+    // transform(1,3) = -msg.local_pose.position.x;
+    // transform(2,3) = msg.local_pose.position.z;
+
+    // Eigen::Matrix4f t_c_b = Eigen::Matrix4f::Zero();
+    // t_c_b(0,2) = 1;
+    // t_c_b(1,0) = -1;
+    // t_c_b(2,1) = -1;
+    // t_c_b(3,3) = 1;
+    
+    // Eigen::Vector4f pose_ori, pose_global;
+    // pose_ori << msg.x, msg.y, msg.z, 1.f;
+    // pose_global = t_c_b * pose_ori;
+    // pose_global = transform * pose_ori;
+
+
+
 
     geometry_msgs::Point32 corrected_position;
     corrected_position.x = pose_global(0);
     corrected_position.y = pose_global(1);
     corrected_position.z = pose_global(2);
     board_pos_pub.publish(corrected_position);
-    board_relative_position << corrected_position.x, corrected_position.y, corrected_position.z;
-    ROS_INFO_THROTTLE(0.1, "pose_global=(%f, %f, %f)", pose_global(0), pose_global(1), pose_global(2));
+    board_global_position << corrected_position.x, corrected_position.y, corrected_position.z;
+    // ROS_INFO_THROTTLE(0.1, "pose_global=(%f, %f, %f)", pose_global(0), pose_global(1), pose_global(2));
 }
 
 // void dynamicObjectsCallback(const hist_kalman_mot::ObjectsInTracking &msg)
@@ -1768,8 +1885,12 @@ void yellowBoardCallback(const yolo_ros_real_pose::RealPose &msg)
 
 void uavModeCallback(const mavros_msgs::State &msg)
 {
-    if(msg.mode=="OFFBOARD") offboard_ready=true;
-    else offboard_ready=false;
+    if(!if_fake_offboard){
+        if(msg.mode=="OFFBOARD") offboard_ready=true;
+        else offboard_ready=false;
+    }else{
+        offboard_ready = true;
+    }
 }
 
 void sendMotorCommands(double yaw) // Range[-Pi, Pi], [0, 1]
@@ -1884,6 +2005,40 @@ int main(int argc, char** argv)
 
     ROS_INFO("Heading resolution = %f (rad), Fov = %f, valid_piece_num = %d", heading_resolution, CAMERA_H_FOV, valid_piece_num);
 
+
+
+    p_offset << 0.0, 0.0, 0.0;
+    for(int i=0; i<check_points_num; i++){
+        if(i%3 == 0){
+            check_points[i][0] = circles[i/3][0] - d_qian;
+            check_points[i][1] = circles[i/3][1];
+            check_points[i][2] = board_height[i/3];
+
+        } else if(i%3 == 1){
+            check_points[i][0] = circles[i/3][0] - d_qian;
+            check_points[i][1] = circles[i/3][1];
+            check_points[i][2] = circles[i/3][2];
+        }else{
+            check_points[i][0] = circles[i/3][0] + d_hou;
+            check_points[i][1] = circles[i/3][1];
+            check_points[i][2] = circles[i/3][2];
+        }
+
+        head_directions[i] = 0;
+        check_points_init_ref_length[i] = 1.0;
+    }
+
+    /// Ingore checking board 2
+    check_points[3][0] = check_points[4][0];
+    check_points[3][1] = check_points[4][1];
+    check_points[3][2] = check_points[4][2];
+
+
+    for(int i=0; i<check_points_num; i++){
+        std::cout<< "check_points["<<i<<"]="<<check_points[i][0]<<"," <<check_points[i][1]<<","<<check_points[i][2]<<")" <<std::endl;
+    }
+
+
     // Random seed
     std::srand((unsigned)time(NULL));
 
@@ -1894,6 +2049,7 @@ int main(int argc, char** argv)
 
     goal_pub = nh.advertise<geometry_msgs::PointStamped>("/goal_position",1,true);
     current_marker_pub = nh.advertise<visualization_msgs::Marker>("/visualization_marker", 1);
+    current_goal_pub = nh.advertise<visualization_msgs::Marker>("/goal_marker", 1);
 
     motor_pub = nh.advertise<geometry_msgs::Point32>("/place_velocity_info_corrected", 1, true); 
 
@@ -1947,7 +2103,7 @@ int main(int argc, char** argv)
         }
 
         if(DIRECTION_AUTO_CHANGE){
-            randomGoalGenerate();
+            goalGenerate(check_point_counter);
         }
         
     }

@@ -13,6 +13,8 @@
 SCSCL sc;
 ros::Publisher po_ve_pub, po_ve_pub2;
 
+int offset = -25;
+
 void commandsCallback(const geometry_msgs::Point32& msg)
 {
     // Position: -2.618 rad (150 degree) to 2.618 rad (150 degree) to 0~1023. 512 is treated is as center
@@ -31,7 +33,7 @@ void commandsCallback(const geometry_msgs::Point32& msg)
         pos_sp_ori = -2.618;
     }
 
-    int pos_sp = (int)((pos_sp_ori + 2.618) * 195.38);
+    int pos_sp = (int)((pos_sp_ori + 2.618) * 195.38) + offset;
     if(pos_sp > 1023){
         pos_sp = 1023;
     }else if(pos_sp < 0){
@@ -55,7 +57,7 @@ int main (int argc, char** argv)
 {
     ros::init(argc, argv, "small_motor_driver");
 
-    if(!sc.begin(57600, "/dev/ttyS0")){
+    if(!sc.begin(38400, "/dev/black_usb_ttl")){
         std::cout<< "Failed to init scscl motor!"<<std::endl;
         return -1;
     }
@@ -79,8 +81,8 @@ int main (int argc, char** argv)
     while(ros::ok()) 
     {	
         if(sc.FeedBack(1)!=-1){
-            Pos = sc.ReadPos(-1);
-	    usleep(1000);
+            Pos = (sc.ReadPos(-1) - offset) / 195.38 - 2.618;;
+	        usleep(1000);
             Speed = sc.ReadSpeed(-1);
             usleep(1000);
             Load = sc.ReadLoad(-1);
