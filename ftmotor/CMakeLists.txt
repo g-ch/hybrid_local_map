@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(motor)
+project(ftmotor)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 add_definitions(-std=c++11 -g -O3 -ftree-vectorize -march=native)
 
@@ -40,14 +40,22 @@ catkin_package(
 )
 
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}$
 )
 
+link_directories(lib)
+link_libraries(libSCServo.a)
 
 add_executable(motor_driver src/motor_driver.cpp)
 target_link_libraries(motor_driver ${catkin_LIBRARIES})
+
+add_executable(small_motor_driver src/small_motor_driver.cpp)
+target_link_libraries(small_motor_driver ${catkin_LIBRARIES})
+
+add_executable(small_motor_driver_fake_pose src/small_motor_driver_fake_pose.cpp)
+target_link_libraries(small_motor_driver_fake_pose ${catkin_LIBRARIES})
 
 add_executable(Posi_Vel_pubandsub src/Posi_Vel_pubandsub.cpp)
 target_link_libraries(Posi_Vel_pubandsub ${catkin_LIBRARIES})

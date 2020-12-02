@@ -3,28 +3,28 @@ if_in_simulation: false
 
 # Parameters for initial goal position
 goal_position_x: 0.0  #0.0
-goal_position_y: 15.0 #6.0
+goal_position_y: 6.0 #6.0
 goal_position_z: 1.0  ##DOES NOT MATTER NOW. USE height when turned to OFFBOARD
 
 # Parameters for UAV path planning
-if_plan_vertical_path: true
-if_flyback_enable: false
-MAX_V_XY: 3.0 # 0.8 multiply 1.414 for xy combined limitation
+if_plan_vertical_path: false
+if_flyback_enable: true
+MAX_V_XY: 0.5 # 0.8 multiply 1.414 for xy combined limitation
 MAX_V_Z_UP: 1.0
 MAX_V_Z_DOWN: 1.0
-MAX_A: 4.0 #1.5
+MAX_A: 1.0 #1.5
 DIRECTION_AUTO_CHANGE: true
-DIRECTION_CHANGE_LEFT_SIZE: 10
+DIRECTION_CHANGE_LEFT_SIZE: 1.0
 HEIGHT_LIMIT: 1.8
-XY_LIMIT: 15
-distance_reference_length: 2.0  #1.5
-toward_goal_k1_xy: 4.0 #2.0
-toward_goal_k1_z: 4.0  #2.0
+XY_LIMIT: 2.3
+distance_reference_length: 1.5  #1.5
+toward_goal_k1_xy: 5.0 #2.0
+toward_goal_k1_z: 5.0  #2.0
 less_variation_k2_xy: 2.0
 less_variation_k2_z: 2.0 
-v_max_at_goal_ori: 1.5 #% 0.3 m/s, just reference for goal velocity, but important
+v_max_at_goal_ori: 0.25 #% 0.3 m/s, just reference for goal velocity, but important
 
-collision_threshold_static: 0.6
+collision_threshold_static: 0.55
 collision_threshold_dynamic: 0.85
 
 PLAN_INIT_STATE_CHANGE_THRESHOLD: 0.15  #0.15
@@ -51,4 +51,4 @@ if_publish_panel_arrays: true
 CAMERA_H_FOV: 62.0
 
 head_max_yaw_delt: 0.5
-motor_velocity_set: 50
+motor_velocity_set: 70

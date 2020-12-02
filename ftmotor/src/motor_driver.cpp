@@ -129,13 +129,14 @@ void velocity_serial_data(){
         	float velocity_read = 0.0;
         	if(buffer[6]==0x00){
         		velocity_read = velocity_read_low *0.732f;
-        		//ROS_INFO("Velocity=%frpm",velocity_read);
+                        ROS_INFO("Velocity=%frpm",velocity_read);
 		    }
         	else if(buffer[6]==0x80){
         		velocity_read = -velocity_read_low *0.732f;
         		//ROS_INFO("Velocity=%frpm",velocity_read);
-        	}
-        	else{ROS_INFO("VelocityInfoError");}
+                }
+
+                else{ROS_INFO("VelocityInfoError %x",buffer[6]);}
         	twomsg.y = velocity_read;
             //ROS_INFO("velocity_read=%f", velocity_read);
     	}
@@ -206,8 +207,8 @@ int main (int argc, char** argv)
     try 
     { 
     //设置串口属性，并打开串口 
-	ser.setPort("/dev/Motor"); 
-        ser.setBaudrate(115200); 
+        ser.setPort("/dev/ttyS0");
+        ser.setBaudrate(57600);
         serial::Timeout to = serial::Timeout::simpleTimeout(10); 
         ser.setTimeout(to); 
         ser.open(); 

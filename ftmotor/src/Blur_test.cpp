@@ -1,4 +1,3 @@
-// Put a pillar exactly 3 meters from the camera
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -163,7 +162,7 @@ void move_to(float p, float v_cmd)
 {
   geometry_msgs::Point32 msg;
   msg.x=p;
-  msg.y=v_cmd;
+  msg.y=v_cmd * 10;
   msg.z=0.0;
   commands_pub.publish(msg);
 }
@@ -188,7 +187,6 @@ float speed_after_change_direction()
 
     vel= vel_to_rate_cmd(3.0, linear_v_ob);  // l = 3.0m.
     move_to(pos, vel);
-    ROS_INFO("start p is %f, Current p is %f, move to %f", start_p, current_p, pos);
     
     linear_v_ob += 1.f;
     return linear_v_ob - 1.f;

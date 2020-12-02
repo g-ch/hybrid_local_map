@@ -49,7 +49,7 @@ using namespace std;
 #define PI_2 1.5708
 
 /**** Parameters to tune, some initialization needs to be changed in main function ****/
-const double resolution = 0.13;
+const double resolution = 0.12;
 const double trunc_distance = 1.0;
 
 static const int POW = 6;
@@ -451,7 +451,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
 
     if(init_time)
     {
-        init_head_yaw = motor_msg->process_value;
+        init_head_yaw = 0.0; //motor_msg->process_value;
         init_time = false;
         motor_initialized = true;
         ROS_INFO("Head Init Yaw in motor coordinate=%f", init_head_yaw);
@@ -1087,6 +1087,8 @@ void marker_publish(Eigen::MatrixXd &Points)
 
     // Line width
     points.scale.x = 0.1;
+    points.scale.y = 0.1;
+    points.scale.z = 0.1;
     goal_strip.scale.x = 0.05;
 
     // points are green
@@ -1286,6 +1288,9 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         }else{
             ROS_WARN_THROTTLE(2.0, "No valid trajectory found! Trapped in safety mode!");
             safe_trajectory_avaliable = false;
+
+            setPointSend(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());  ///SEND any thing to stop
+
 
             // Publish points of stored point to show
             Eigen::MatrixXd show_points = Eigen::MatrixXd::Zero(1, 3);
@@ -1603,8 +1608,8 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
 }
 
 default_random_engine random_generator;
-uniform_real_distribution<double> x_distribution(-2.0, 2.0);
-uniform_real_distribution<double> z_distribution(0.7, 1.5);
+uniform_real_distribution<double> x_distribution(-1.7, 1.7);
+uniform_real_distribution<double> z_distribution(1.2, 1.3);
 void randomGoalGenerate()
 {
     ROS_WARN("Last Goal = (%f, %f, %f)", p_goal(0), p_goal(1), p_goal(2));
@@ -1824,7 +1829,7 @@ int main(int argc, char** argv)
         max_sample_delt_angle = 1.67;
     }
 
-    trajectory_time_table->csv2pva_table("/home/topup/chg_ws/src/tables/p3-84_v3_a4_res0-1.csv");
+    trajectory_time_table->csv2pva_table("/home/up/catkin_ws/src/hybrid_local_map/others/p3-2_v1-5_a2_res0-1.csv");
     ROS_WARN("trajectory_time_table loaded!");
 
     // State parameters initiate
