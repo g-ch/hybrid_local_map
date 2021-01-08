@@ -1,8 +1,0 @@
-<launch>
-	<node pkg="secure_flying" name="local_planning_dynamic" type="local_planning_dynamic" output="screen">
-		<rosparam 
-	        file="$(find secure_flying)/cfg/setting.yaml"
-	        command="load" 
-		/> 
-	</node>
-</launch>
