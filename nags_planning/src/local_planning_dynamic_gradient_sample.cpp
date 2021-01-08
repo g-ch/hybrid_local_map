@@ -1,9 +1,14 @@
+// Coordinate follows mavros 
+
 #include <ewok/ed_nor_ring_buffer.h>
 #include <ros/ros.h>
+
 #include <tf/transform_datatypes.h>
+
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/time_synchronizer.h>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
@@ -20,12 +25,19 @@
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <algorithm>
+#include <tf/transform_broadcaster.h>
+#include <hist_kalman_mot/ObjectInTracking.h>
+#include <hist_kalman_mot/ObjectsInTracking.h>
+#include <time.h>
 #include <stdlib.h>
 #include <mavros_msgs/State.h> 
+#include <random>
 #include <nav_msgs/Odometry.h>
 #include <control_msgs/JointControllerState.h>
 #include <std_msgs/Float64.h>
 #include <queue>
+#include <fstream>
 #include <cstdint>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 
@@ -39,9 +51,12 @@ using namespace std;
 /**** Parameters to tune, some initialization needs to be changed in main function ****/
 const double resolution = 0.13;
 const double trunc_distance = 1.0;
+
 static const int POW = 6;
 static const int N = (1 << POW);
+
 const float SEND_DURATION = 0.0250f; //40Hz (10HZ at least)
+
 ewok::EuclideanDistanceNormalRingBuffer<POW> rrb(resolution, trunc_distance); //Distance truncation threshold
 
 const int LOOKING_PIECES_SIZE = 16; // Should be even, Resolution: 22.5 degrees one piece. MID=7. Yaw=0. Larger: 7 - 15 :  0 to Pi;  Smaller: 7-0 : 0 to (nearly)-Pi;
@@ -50,22 +65,31 @@ const float HEAD_BUFFER_HIT_INCREASE = 0.4f;
 const float HEAD_BUFFER_MISS_DECREASE_STANDARD_V = 0.05f; // Miss add value when velocity is 1m/s
 const float HEAD_BUFFER_MISS_DECREASE_MIN = 0.03f;
 
-float HEIGHT_LIMIT, XY_LIMIT, MAX_V_XY, MAX_V_Z_UP, MAX_V_Z_DOWN, MAX_A;
+float MAX_V_XY = 1.f;
+float MAX_V_Z_UP = 1.f;
+float MAX_V_Z_DOWN = 0.5f;
+float MAX_A = 1.5f;
+float HEIGHT_LIMIT = 2.f;
+float XY_LIMIT = 2.5f;
+float Y_GOAL_TO_CENTER = 4.f;
+
+double DIRECTION_CHANGE_LEFT_SIZE = 1.5;
 
 float PLAN_INIT_STATE_CHANGE_THRESHOLD = 0.1;
 
+bool DIRECTION_AUTO_CHANGE = false;
+
 struct  Path_Planning_Parameters
 {
-    double d_ref = 1.6;
-    double k1_xy = 5;
-    double k1_z = 3;
-    double k2_xy = 1;
-    double k2_z = 1.5;
-    double k3_xy = 0.5;
-    double k3_z = 0.5;
+    double d_ref = 1.6;  //NOTE: NEED TO CHANGE CHG
+    double k1_xy = 5; //% Goal directed coefficient
+    double k1_z = 3; //% Goal directed coefficient
+    double k2_xy = 1; //% Rotation coefficient 3
+    double k2_z = 1.5; //% Rotation coefficient 3.5
     double v_max_at_goal_ori = 0.3; //% m/s, just reference  5.0 originally
     double v_scale_min = 0.3;
     double collision_threshold_static = 0.6;
+    double collision_threshold_dynamic = 1.0;
 }pp;
 
 
@@ -74,10 +98,23 @@ struct  Head_Planning_Parameters
    double k_current_v = 0.6;
    double k_planned_direction = 0.2;
    double k_v_fluctuation = 0.3;
+   double k_dynamic_objects = 0.5;
    double k_common_update = 0.1;
 }hp;
 
+struct  Position_Tracker_Parameters
+{
+    float kp_xy = 0.2;
+    float kp_z = 0.1;
+    float kp_yaw = 0.2;
+    float p_2_delt_v_max_xy = 0.8;
+    float p_2_delt_v_max_z = 0.4;
+    float max_yaw_rate = 1.0;
+}pt;
+
+float MAP_DELAY_SECONDS = 0.05;
 const int point_num_pub = 5; // For the visualization of current planned trajectory
+
 /*** End of Parameters ***/
 
 /** Basic global variables **/
@@ -90,25 +127,32 @@ ros::Publisher motor_pub;
 ros::Publisher pva_pub;  //add on 20 Aug. 2020
 
 ros::Publisher sim_trajectory_pub; // add on 7 Jan. 2020
+
 double x_centre, y_centre, z_centre;
 
 bool if_in_simulation = false;
+
 bool offboard_ready = false;
+bool objects_updated = false;
+bool imu_initilized = false;
 bool state_locked = false;
 bool state_updating = false;
 bool safe_trajectory_avaliable = true;
+bool use_position_global_time = false;
 bool if_plan_vertical_path = true;
 bool if_sim_lee_position_controller = false;
 bool if_flyback_enable = true;
+
+hist_kalman_mot::ObjectsInTracking dynamic_objects;
 
 std::queue<double> pose_timestamp_queue;
 std::queue<Eigen::Quaternionf> att_queue;
 std::queue<Eigen::Vector3d> pos_queue;
 
-std::string TABLE_PATH;
-
 /****** Global variables for path planning ******/
 ros::Time _data_input_time;
+ros::Time _algorithm_time;
+double global_time_now;  //update in position callback
 
 bool initialized = false;
 
@@ -122,6 +166,17 @@ Eigen::Vector3d init_p;
 double collected_time;
 double yaw0;
 double yaw0_rate;
+//Eigen::VectorXd quad(4);
+
+double yaw_init = 0.0;  //Keep zero in this edition, the sampled directions are from all sides
+double theta_h_last = 0.0;
+double theta_v_last = 0.0;
+
+Eigen::Vector3d p_store;
+Eigen::Vector3d *send_traj_buffer_p;
+Eigen::Vector3d *send_traj_buffer_v;
+Eigen::Vector3d *send_traj_buffer_a;
+
 double max_sample_delt_angle = 1.0;
 
 /*** Global variables for rotating head ***/
@@ -151,13 +206,13 @@ ros::Publisher cost_head_final_pub;
 
 void sendMotorCommands(double yaw);
 
-void setParameters();
+void randomGoalGenerate();
 
-void getParameterList(ros::NodeHandle nh);
+void setParameters();
 
 void setPointSend(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a);
 
-/**********************FOR PVA TABLE***************************/
+/**********************FOR HSH TABLE***************************/
 // PVA table for feasible total planning time T
 typedef struct pva_table pva_table;
 struct pva_table {
@@ -218,6 +273,19 @@ struct pva_table {
         return this->table[idx];
     }
 
+    void pva_table2csv(const std::string &str) {
+        std::ofstream outfile;
+        outfile.open(str, std::ios::out);
+
+        for (int i = 0; i < 4; ++i) outfile << std::to_string(this->dim_size[i]) << ',';
+        outfile << std::to_string(this->rez) << std::endl;
+
+        for (uint64_t i = 0; i < this->table_size-1; ++i) outfile << std::to_string(this->table[i]) << ',';
+        outfile << std::to_string(this->table[table_size-1]);
+
+        outfile.close();
+    }
+
     void csv2pva_table(const std::string &str) {
         int tmp_dim_size[4];
         double tmp_rez;
@@ -241,6 +309,13 @@ struct pva_table {
             this->table[i] = std::stod(tmp_str);
         }
     }
+
+    void free_pva_table() {
+        free(this->pva_limit);
+        free(this->table);
+        free(this->dim_interval);
+        free(this->dim_size);
+    }
 };
 
 pva_table *trajectory_time_table = (pva_table*)malloc(sizeof(pva_table));
@@ -254,6 +329,15 @@ double getHeadingYawFromSeq(int seq)
     }
     else{
         return (seq - mid_seq_num) * heading_resolution;
+    }
+}
+
+void correctAngleToPiRange(double &angle){
+    while(angle > M_PI){
+        angle = angle - 2*M_PI;
+    }
+    while(angle < -M_PI){
+        angle = 2*M_PI + angle;
     }
 }
 
@@ -292,6 +376,7 @@ void correctPieceSeq(int &seq)
 
 void addHitOnePiece(int seq)
 {
+    //std::cout<<"hit seq = "<<seq<<std::endl;
     _direction_update_buffer(seq)+HEAD_BUFFER_HIT_INCREASE<=1.f ? _direction_update_buffer(seq)+=(float)HEAD_BUFFER_HIT_INCREASE : _direction_update_buffer(seq)=1.f;
 }
 
@@ -303,6 +388,7 @@ void addMissOnePiece(int seq)
         delt_miss = delt_miss_by_velocity;
     }
 
+    //std::cout<<"miss seq = "<<seq<<std::endl;
     _direction_update_buffer(seq)-delt_miss>=0.f ? _direction_update_buffer(seq)-=delt_miss : _direction_update_buffer(seq)=0.f;
 }
 
@@ -335,6 +421,26 @@ void updateHeadBuffer(const int &heading_direction_seq)
     }
 }
 
+void cubePointCloudGenerator(Eigen::Vector3f center, Eigen::Vector3f size, float resolution, ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud &cloud)
+{
+    int x_size = (int)(size(0) / resolution);
+    int y_size = (int)(size(1) / resolution);
+    int z_size = (int)(size(2) / resolution);
+    float x_start_position = center(0) - x_size/2 * resolution;
+    float y_start_position = center(1) - y_size/2 * resolution;
+    float z_start_position = center(2) - y_size/2 * resolution;
+
+    for(int i=0; i<x_size; i++)
+    {
+        for(int j=0; j<y_size; j++)
+        {
+            for(int k=0; k<z_size; k++)
+            {
+                cloud.push_back(Eigen::Vector4f(x_start_position + i*resolution, y_start_position + j*resolution, z_start_position + k*resolution, 0));
+            }
+        }
+    }
+}
 
 bool motor_initialized = false;
 // this callback use input cloud to update ring buffer, and update odometry of UAV
@@ -375,6 +481,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     }
 
     /*** For cloud ***/
+    // ROS_INFO("Received Point Cloud!");
     _data_input_time = ros::Time::now();
 
     Eigen::Quaternionf quad_sychronized = quad;  //initialze in case no point in the queue satisfy
@@ -407,6 +514,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     transform(0, 3) = p0(0);
     transform(1, 3) = p0(1);
     transform(2, 3) = p0(2);
+    // std::cout << transform.matrix() << "\n\n";
 
     // convert cloud to pcl form
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in(new pcl::PointCloud<pcl::PointXYZ>());
@@ -420,6 +528,9 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     sor.setLeafSize(res, res, res);
     sor.filter(*cloud_filtered);
 
+//    double elp_sample = ros::Time::now().toSec() - _data_input_time.toSec();
+//    std::cout << "Map sample time = " << elp_sample << " s" << std::endl;
+
     // transform to world NWU frame
     Eigen::Matrix4f t_c_b = Eigen::Matrix4f::Zero();
     t_c_b(0, 2) = 1;
@@ -431,6 +542,12 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_2(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::transformPointCloud(*cloud_filtered, *cloud_1, t_c_b);
     pcl::transformPointCloud(*cloud_1, *cloud_2, transform);
+
+   // double elp1 = ros::Time::now().toSec() - _data_input_time.toSec();
+    //std::cout << "Map transfer time = " << elp1 << " s" << std::endl;
+
+    // t_c_b is never needed when used in the real world
+    //pcl::transformPointCloud(*cloud_in, *cloud_2, transform);
 
     // compute ewol pointcloud and origin
     Eigen::Vector3f origin = (transform * Eigen::Vector4f(0, 0, 0, 1)).head<3>(); //  position (x,y,z)
@@ -479,14 +596,38 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     }
 
     double preprocess = ros::Time::now().toSec() - _data_input_time.toSec();
+    //std::cout << "Map preprocess time = " << preprocess << " s" << std::endl;
 
     // insert point cloud to ringbuffer
     rrb.insertPointCloud(cloud_ew, origin);
 
     double insert_t = ros::Time::now().toSec() - _data_input_time.toSec();
+    //std::cout << "Map insert time = " << insert_t << " s" << std::endl;
+
+    /** Remove map points around dynamic objects **/
+    Eigen::Vector3f cube_size_to_remove_person;
+    cube_size_to_remove_person << 0.6, 0.6, 2.4;
+    for(auto & ob_i : dynamic_objects.result){
+        Eigen::Vector3f ob_position;
+        ob_position <<  ob_i.position.x - ob_i.velocity.x*MAP_DELAY_SECONDS,  // voxels in map were built slower than the dynamic obstacles were detected
+                        ob_i.position.y - ob_i.velocity.y*MAP_DELAY_SECONDS,
+                        ob_i.position.z - ob_i.velocity.z*MAP_DELAY_SECONDS;
+        ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_object_cube;
+        cubePointCloudGenerator(ob_position, cube_size_to_remove_person, resolution, cloud_object_cube);
+        rrb.removePointCloud(cloud_object_cube, ob_position);
+    }
+
+     Eigen::Vector3f cube_size_to_remove_uav;
+     cube_size_to_remove_uav << 1.0, 1.0, 1.2;
+     Eigen::Vector3f uav_position;
+     uav_position << p0(0), p0(1), p0(2);
+     ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_uav_cube;
+     cubePointCloudGenerator(uav_position, cube_size_to_remove_uav, resolution, cloud_uav_cube);
+     rrb.removePointCloud(cloud_uav_cube, uav_position);
+    // /** End Remove  **/
 
 
-    // Calculate distance field considering newly imported points (dynamic points)
+    // Calculate distance field consider newly imported points (dynamic points)
     //rrb.updateDistanceDynamic(cloud_ew, origin);
     rrb.updateDistance();
 
@@ -496,9 +637,13 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
     /* Update buffer for rolling head */
     double head_update_start_time = ros::Time::now().toSec();
     int heading_direction_seq = getHeadingSeq(motor_yaw);  //current heading direction
+//    std::cout << "heading_direction_seq=" << heading_direction_seq << std::endl;
     updateHeadBuffer(heading_direction_seq);
     double head_update_time = ros::Time::now().toSec() - head_update_start_time;
     ROS_INFO_THROTTLE(3.0, "SUD update time = %lf", head_update_time);
+
+//    std::cout << "Head buffer update time = " << head_up << " s" << std::endl;
+
 }
 
 void cloudPubCallback(const ros::TimerEvent& e)
@@ -509,7 +654,10 @@ void cloudPubCallback(const ros::TimerEvent& e)
     pcl::PointCloud<pcl::PointXYZ> cloud;
     Eigen::Vector3d center;
 
+    // std::cout << "before1" << std::endl;
+    // rrb.getBufferAllAsCloud(cloud, center);
     rrb.getBufferAsCloud(cloud, center);
+    // std::cout << "after1" << std::endl;
 
     // convert to ROS message and publish
     sensor_msgs::PointCloud2 cloud2;
@@ -530,7 +678,9 @@ void cloudPubCallback(const ros::TimerEvent& e)
     map_center_pub.publish(center_p);
     //ROS_INFO("Cloud published!");
 
+
     /*EDF showing*/
+    // std::cout << "before2" << std::endl;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_edf_field(new pcl::PointCloud<pcl::PointXYZRGB>());
     static double boundary = pow(2.0, POW) * resolution / 2; // Here the boundary is 6.4m
 
@@ -565,6 +715,7 @@ void cloudPubCallback(const ros::TimerEvent& e)
     edf_ros_cloud.header.stamp = ros::Time::now();
     edf_ros_cloud.header.frame_id = "world";
     cloud_edf_pub.publish(edf_ros_cloud);
+    // std::cout << "after2" << std::endl;
 }
 
 
@@ -619,6 +770,7 @@ int generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p
 
     T = T1 > T2 ? T1 : T2;
     T = T > T3 ? T : T3;
+    T *= 0.8;
     T = T < 0.5 ? 0.5 : T;
 
     int times = T / delt_t;
@@ -660,11 +812,11 @@ int generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p
 
     float min_distance;
     bool if_far_from_obstacles;
-    /// Use Function "collision_checking_with_fence_min_dist" if a virtual fence is considered
-    //if_far_from_obstacles = rrb.collision_checking_with_fence_min_dist(sim_traj, Num, min_distance, init_p, HEIGHT_LIMIT, XY_LIMIT);
-
-    if_far_from_obstacles = rrb.collision_checking_no_fence_min_dist(sim_traj, Num, min_distance);
-
+    if(DIRECTION_AUTO_CHANGE){
+        if_far_from_obstacles = rrb.collision_checking_with_fence_min_dist(sim_traj, Num, min_distance, init_p, HEIGHT_LIMIT, XY_LIMIT);
+    }else{
+        if_far_from_obstacles = rrb.collision_checking_no_fence_min_dist(sim_traj, Num, min_distance);
+    }
     min_dist = (double)min_distance;
 
     if(if_far_from_obstacles){  ///Safe path getting away from obstacles
@@ -688,7 +840,7 @@ int generate_primitive_with_table_and_check_feasibility(const Eigen::Vector3d &p
  * @Param: max_iteration_times defines the maximum iteration times to find a feasible path.
  *****************/
 int feasible_path_generate(double path_length, double dist_threshold, double theta_h_range_delt_max, double theta_v_range_delt_max,
-                            double lamda_goal, double lamda_last, double lamda_head, double delt_t, const Eigen::Vector3d &p0, const Eigen::Vector3d &v0,
+                            double lamda_goal, double lamda_last, double delt_t, const Eigen::Vector3d &p0, const Eigen::Vector3d &v0,
                             const Eigen::Vector3d &a0, double yaw0, const Eigen::Vector3d& p_goal, double v_final,
                             Eigen::MatrixXd &p, Eigen::MatrixXd &v, Eigen::MatrixXd &a, Eigen::VectorXd &t, double &theta_h_chosen, //result
                             double delt_theta_max_h = 0.785f, double delt_theta_max_v = 0.4f, int max_iteration_times = 10)
@@ -706,11 +858,11 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
         init_flag = false;
     }
 
-    double theta_star_h = (lamda_goal*theta_h_goal + lamda_last*theta_h_last + lamda_head*motor_yaw) / (lamda_goal+lamda_last+lamda_head);
-    double theta_star_v = (lamda_goal*theta_v_goal + lamda_last*theta_v_last + lamda_head*motor_yaw) / (lamda_goal+lamda_last+lamda_head);
+    double theta_star_h = (lamda_goal*theta_h_goal + lamda_last*theta_h_last) / (lamda_goal+lamda_last);
+    double theta_star_v = (lamda_goal*theta_v_goal + lamda_last*theta_v_last) / (lamda_goal+lamda_last);
 
-    double theta_h_range_delt_max_positive = theta_h_range_delt_max;// + (theta_h_goal - theta_star_h);  /// delete (theta_h_goal - theta_star_h) to sample around theta_star_h
-    double theta_h_range_delt_max_negative = -theta_h_range_delt_max;// + (theta_h_goal - theta_star_h);
+    double theta_h_range_delt_max_positive = theta_h_range_delt_max + (theta_h_goal - theta_star_h);
+    double theta_h_range_delt_max_negative = -theta_h_range_delt_max + (theta_h_goal - theta_star_h);
 
     int feasible_flag = 0;
     double banned_theta_h_delt_positive = 0.f;
@@ -832,10 +984,13 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
             for(int i=0;i<4;i++){
                 theta_v_1 = theta_v_1 + delt_theta;
                 if(theta_v_1 > theta_star_v + theta_v_range_delt_max || theta_v_1 < theta_star_v - theta_v_range_delt_max){
+                    // Theta_v_1 out of range
+//                    ROS_WARN("Theta_v_1 out of range, theta_v_1=%f, theta_star_v=%f, theta_v_range_delt_max=%f", theta_v_1, theta_star_v, theta_v_range_delt_max);
                     break;
                 }
                 feasible_flag = generate_primitive_with_table_and_check_feasibility(p0, v0, a0, yaw0, theta_h_1, theta_v_1,
                                                                                     p_goal, path_length, v_final,delt_t, dist_threshold, p, v, a, t, d1);
+//                ROS_INFO("Vertically Checking, i=%d, theta_v_1=%f, delt_theta=%f", i, theta_v_1, delt_theta);
 
                 if(feasible_flag > 0){
                     ROS_WARN("Found vertically feasible path, p0(0)=%f, d1=%f, theta_h_1=%f, theta_v_1=%f", p0(0), d1, theta_h_1, theta_v_1);
@@ -857,9 +1012,11 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
                         if(delt_theta > 0) delt_theta = 0.05;
                         else delt_theta = -0.05;
                     }
+//                    ROS_INFO("AAA, delt_theta=%f, d0=%f, d1=%f", delt_theta, d0, d1);
                     d0 = d1;
                 }else{
                     d0 = d1;
+//                    ROS_INFO("BBB, d0=%f", d0);
                 }
             }
             if(feasible_flag > 0){break;}
@@ -911,6 +1068,8 @@ int feasible_path_generate(double path_length, double dist_threshold, double the
 
     return feasible_flag;
 }
+
+
 
 /* Publish markers to show the path in rviz */
 void marker_publish(Eigen::MatrixXd &Points)
@@ -977,6 +1136,88 @@ void marker_publish(Eigen::MatrixXd &Points)
 }
 
 
+/** Mahalanobis Distance calculation **/
+float mahalanobisDistance3D(Eigen::Vector3f &point, Eigen::Vector3f &distribution_avg, Eigen::Matrix3f &distribution_cov)
+{
+    Eigen::Vector3f delt = point - distribution_avg;
+    return sqrt(delt.transpose() * distribution_cov.inverse() * delt);
+}
+
+float mahalanobisDistance2D(Eigen::Vector2f &point, Eigen::Vector2f &distribution_avg, Eigen::Matrix2f &distribution_cov)
+{
+    Eigen::Vector2f delt = point - distribution_avg;
+    return sqrt(delt.transpose() * distribution_cov.inverse() * delt);
+}
+
+bool dynmaicObstacleCollisionChecking3D(Eigen::Vector3f *traj_points, int Num, double threshold) {
+    if(dynamic_objects.result.size() == 0) return true;
+
+    float last_distance = 0;
+    for (int i = 0; i < Num; ++i) {
+        Eigen::Vector3f traj_point = traj_points[i];
+        std::vector<float> distances_to_objects;
+
+        for(auto & dynamic_obstacle_i : dynamic_objects.result){
+            Eigen::Matrix3f distribution_cov = Eigen::Matrix3f::Identity() * dynamic_obstacle_i.sigma;
+            Eigen::Vector3f object_position;
+            //Calculate predicted position
+            object_position << dynamic_obstacle_i.position.x + i*SEND_DURATION*dynamic_obstacle_i.velocity.x,
+                               dynamic_obstacle_i.position.y + i*SEND_DURATION*dynamic_obstacle_i.velocity.y,
+                               dynamic_obstacle_i.position.z + i*SEND_DURATION*dynamic_obstacle_i.velocity.z;
+
+            float mahalanobis_distance = mahalanobisDistance3D(traj_point, object_position, distribution_cov);
+            distances_to_objects.push_back(mahalanobis_distance);
+        }
+
+        float min_distance = *std::min_element(std::begin(distances_to_objects), std::end(distances_to_objects));
+        if(min_distance < threshold && min_distance < last_distance){
+            return false;
+        }
+        last_distance = min_distance;
+    }
+    return true; //pass checking, no collision
+}
+
+bool dynmaicObstacleCollisionChecking2D(Eigen::Vector3f *traj_points, int Num, double threshold) {
+    if(dynamic_objects.result.size() == 0) return true;
+
+    float last_distance = 0;
+    for (int i = 0; i < Num; ++i) {
+        Eigen::Vector2f traj_point;
+        traj_point << traj_points[i][0], traj_points[i][1];
+        std::vector<float> distances_to_objects;
+
+        for(auto & dynamic_obstacle_i : dynamic_objects.result){
+            Eigen::Matrix2f distribution_cov = Eigen::Matrix2f::Identity() * dynamic_obstacle_i.sigma;
+            Eigen::Vector2f object_position;
+            //Calculate predicted position
+            object_position << dynamic_obstacle_i.position.x + i*SEND_DURATION*dynamic_obstacle_i.velocity.x,
+                               dynamic_obstacle_i.position.y + i*SEND_DURATION*dynamic_obstacle_i.velocity.y;
+
+            float mahalanobis_distance = mahalanobisDistance2D(traj_point, object_position, distribution_cov);
+            distances_to_objects.push_back(mahalanobis_distance);
+        }
+        float min_distance = *std::min_element(std::begin(distances_to_objects), std::end(distances_to_objects));
+        if(min_distance < threshold && min_distance < last_distance){
+            return false;
+        }
+        last_distance = min_distance;
+    }
+    return true; //pass checking, no collision
+}
+
+
+/** Delt yaw calculation. Avoid +=Pi problem **/
+double deltYawAbs(double &yaw1, double &yaw2)
+{
+    //std::cout << "(yaw1, yaw1)=" << yaw1 << "," << yaw2 <<std::endl;
+    double delt_yaw = fabs(yaw1 - yaw2);
+    if(delt_yaw > PI){
+        delt_yaw = PIx2 - delt_yaw;
+    }
+    return delt_yaw;
+}
+
 /** This is the function to generate the collision-free path, which is trigered by a timer defined in main function. **/
 void trajectoryCallback(const ros::TimerEvent& e) {
 
@@ -990,7 +1231,7 @@ void trajectoryCallback(const ros::TimerEvent& e) {
     static Eigen::Vector3d last_sended_v = v0;
     static Eigen::Vector3d last_sended_a = a0;
 
-    if(!state_updating)
+    if(!state_updating) /// Need to rethink the necessity of this lock!!!! CHG
     {
         state_locked = true;
 
@@ -1010,12 +1251,12 @@ void trajectoryCallback(const ros::TimerEvent& e) {
 
         if((last_sended_p - p0).squaredNorm() < PLAN_INIT_STATE_CHANGE_THRESHOLD * PLAN_INIT_STATE_CHANGE_THRESHOLD){
             collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
-                                                               pp.k1_xy, pp.k2_xy, pp.k3_xy, SEND_DURATION, last_sended_p, last_sended_v, last_sended_a,
+                                                               pp.k1_xy, pp.k2_xy, SEND_DURATION, last_sended_p, last_sended_v, last_sended_a,
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_INFO_THROTTLE(3.0, "### Continue to plan!");
         }else{
             collision_check_pass_flag = feasible_path_generate(pp.d_ref, pp.collision_threshold_static, max_sample_delt_angle, 1.2,
-                                                               pp.k1_xy, pp.k2_xy, pp.k3_xy, SEND_DURATION, last_sended_p*0.1 + p0*0.9, last_sended_v*0.1+v0*0.9, a0,
+                                                               pp.k1_xy, pp.k2_xy, SEND_DURATION, last_sended_p*0.1 + p0*0.9, last_sended_v*0.1+v0*0.9, a0,
                                                                0, p_goal, v_final, p, v, a, t, theta_h_chosen);
             ROS_WARN_THROTTLE(2.0, "### Track point too far, replan! last_sended_p=(%f, %f, %f), p0=(%f, %f, %f)", last_sended_p(0), last_sended_p(1), last_sended_p(2), p0(0), p0(1), p0(2));
         }
@@ -1091,11 +1332,18 @@ void trajectoryCallback(const ros::TimerEvent& e) {
         double coefficient_planned_dir = 0.0;
         if(collision_check_pass_flag > 0) coefficient_planned_dir = 1.0 - _direction_update_buffer(getHeadingSeq(theta_h_chosen));
 
+        std::vector<double> dynamic_objects_yaw;
+        for(const auto & ob_i : dynamic_objects.result){
+            double ob_i_yaw = atan2(ob_i.position.y-p0(1), ob_i.position.x-p0(0));
+            // std::cout << "ob_i_yaw=" << ob_i_yaw << " (x,y)=" << ob_i.position.x << "," << ob_i.position.y <<std::endl;
+            dynamic_objects_yaw.push_back(ob_i_yaw);
+        }
+
         /** Visualization variables **/
         std_msgs::Float64MultiArray cost_current_velocity_array;
         std_msgs::Float64MultiArray cost_planned_direction_array;
         std_msgs::Float64MultiArray cost_head_fluctuation_array;
-        std_msgs::Float64MultiArray cost_dynamic_objects_array; //useless in this file.
+        std_msgs::Float64MultiArray cost_dynamic_objects_array;
         std_msgs::Float64MultiArray cost_total_array;
         std_msgs::Float64MultiArray cost_update_array;
         /** End of visualization **/
@@ -1112,7 +1360,20 @@ void trajectoryCallback(const ros::TimerEvent& e) {
             double cost_head_fluctuation = hp.k_v_fluctuation * (head_yaw_plan_temp - last_head_yaw_plan) * (head_yaw_plan_temp - last_head_yaw_plan);
 
             double cost_dynamic_objects = 0.0;
+            double cost_dynamic_objects_min = - hp.k_dynamic_objects * 2;
+
             static int effect_range_one_side = 3;
+            static double cost_one_piece = hp.k_dynamic_objects / effect_range_one_side;
+
+            for(auto & ob_yaw_i : dynamic_objects_yaw){
+                double delt_yaw_abs =  deltYawAbs(ob_yaw_i, head_yaw_plan_temp);
+
+                if(delt_yaw_abs <= heading_resolution * effect_range_one_side){
+                    double cost_dynamic_this = cost_one_piece * (effect_range_one_side - deltYawAbs(ob_yaw_i, head_yaw_plan_temp) / heading_resolution); 
+                    cost_dynamic_objects -= cost_dynamic_this;
+                }
+            }
+            cost_dynamic_objects = std::max(cost_dynamic_objects, cost_dynamic_objects_min);
 
             double cost_total_temp = cost_current_velocity + cost_planned_direction + cost_head_fluctuation + cost_dynamic_objects + cost_update_degree;
 
@@ -1218,6 +1479,10 @@ void setPointSend(Eigen::Vector3d p, Eigen::Vector3d v, Eigen::Vector3d a){
 
 void positionCallback(const geometry_msgs::PoseStamped& msg)
 {
+    if(use_position_global_time){
+        global_time_now = msg.header.stamp.toSec();
+    }
+
     if(!state_locked)
     {
         state_updating = true;
@@ -1250,6 +1515,7 @@ void positionCallback(const geometry_msgs::PoseStamped& msg)
             att_queue.pop();
         }
 
+        
         /// Update yaw0 here, should be among [-PI, PI] 
         yaw0 = atan2(2*(quad.w()*quad.z()+quad.x()*quad.y()), 1-2*(quad.z()*quad.z()+quad.y()*quad.y()));   /// TODO: CHECK if this is right!!!
 
@@ -1267,6 +1533,11 @@ void positionCallback(const geometry_msgs::PoseStamped& msg)
     }
 
     ROS_INFO_THROTTLE(1.0, "Current pose. p0 = %f, %f, %f", p0(0), p0(1), p0(2));
+
+    if(fabs(p0(1) - init_p(1))>DIRECTION_CHANGE_LEFT_SIZE && (p0(1)-init_p(1))*(p_goal(1)-init_p(1)) > 0 && DIRECTION_AUTO_CHANGE){
+    //if(fabs(p0(1))>DIRECTION_CHANGE_LEFT_SIZE && p0(1)*p_goal(1) > 0 && DIRECTION_AUTO_CHANGE){
+        randomGoalGenerate();
+    }
 }
 
 void velocityCallback(const geometry_msgs::TwistStamped& msg)
@@ -1275,7 +1546,7 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     {
         state_updating = true;
 
-        /** Change from ENU to NWU**/
+        /** Change from ENU to NWU, NEEDS CAREFUL CHECKING!!!!, chg**/
         v0(0) = msg.twist.linear.y;
         v0(1) = -msg.twist.linear.x;
         v0(2) = msg.twist.linear.z;
@@ -1284,6 +1555,14 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     	if(fabs(v0(0)) < 0.05) v0(0) = 0.0;  //add a dead zone for v0 used in motion primatives
     	if(fabs(v0(1)) < 0.05) v0(1) = 0.0;  //add a dead zone for v0 used in motion primatives
     	if(fabs(v0(2)) < 0.05) v0(2) = 0.0;  //add a dead zone for v0 used in motion primatives
+
+//        for(int i=0; i<3; i++){
+//            if(v0(i) < -MAX_V_XY){
+//                v0(i) = -MAX_V_XY;
+//            }else if(v0(i) > MAX_V_XY){
+//                v0(i) = MAX_V_XY;
+//            }
+//        }
 
     	/** Calculate virtual accelerates from velocity. Original accelerates given by px4 is too noisy **/
         static bool init_v_flag = true;
@@ -1301,6 +1580,15 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     		if(fabs(a0(0)) < 0.1) a0(0) = 0.0;  //dead zone for acc x
      		if(fabs(a0(1)) < 0.1) a0(1) = 0.0; //dead zone for acc y
     		if(fabs(a0(2)) < 0.1) a0(2) = 0.0; //dead zone for acc z
+
+//            for(int i=0; i<3; i++){
+//                if(a0(i) < -MAX_A){
+//                    a0(i) = -MAX_A;
+//                }else if(a0(i) > MAX_A){
+//                    a0(i) = MAX_A;
+//                }
+//            }
+
     	}
 
         last_time = ros::Time::now().toSec();
@@ -1308,13 +1596,46 @@ void velocityCallback(const geometry_msgs::TwistStamped& msg)
     	last_vy = v0(1);
     	last_vz = v0(2);
 
+        //ROS_INFO_THROTTLE(1, "vel=(%f, %f, %f), acc=(%f, %f, %f)", v0(0), v0(1), v0(2), a0(0), a0(1), a0(2));
+
         state_updating = false;
     }
 }
 
+default_random_engine random_generator;
+uniform_real_distribution<double> x_distribution(-2.0, 2.0);
+uniform_real_distribution<double> z_distribution(0.7, 1.5);
+void randomGoalGenerate()
+{
+    ROS_WARN("Last Goal = (%f, %f, %f)", p_goal(0), p_goal(1), p_goal(2));
+
+    p_goal(0) = x_distribution(random_generator) + init_p(0);
+    // p_goal(0) = init_p(0);
+    // p_goal(2) = z_distribution(random_generator);  ///CHG!! 20200820  banned random generation of p_goal(2)
+
+    if(p0(1) > 0){
+        p_goal(1) = -Y_GOAL_TO_CENTER + init_p(1);
+    }else{
+        p_goal(1) = Y_GOAL_TO_CENTER + init_p(1);
+    }
+
+    //publish center
+    geometry_msgs::PointStamped goal_p;
+    goal_p.header.stamp = ros::Time::now();
+    goal_p.header.frame_id = "world";
+    goal_p.point.x = p_goal(0);
+    goal_p.point.y = p_goal(1);
+    goal_p.point.z = p_goal(2);
+    goal_pub.publish(goal_p);
+
+    ROS_WARN("New Goal = (%f, %f, %f)", p_goal(0), p_goal(1), p_goal(2));
+}
 
 void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
 {
+    if(use_position_global_time){
+        global_time_now = msg.header.stamp.toSec();
+    }
     collected_time = msg.header.stamp.toSec();
 
     if(!state_locked)
@@ -1340,7 +1661,11 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
             init_p = p0;
             init_p_flag = false;
         }
+
+        /// Update yaw0 here, should be among [-PI, PI] 
         yaw0 = atan2(2*(quad.w()*quad.z()+quad.x()*quad.y()), 1-2*(quad.z()*quad.z()+quad.y()*quad.y()));
+
+//        ROS_INFO("Current yaw = %f", yaw0);
 
         /*** velocity ***/
         /** NWU**/
@@ -1377,9 +1702,34 @@ void simPositionVelocityCallback(const nav_msgs::Odometry &msg)
         last_vz = v0(2);
 
         state_updating = false;
+
+//        ROS_INFO_THROTTLE(2, "sim position updated! a0=(%f, %f, %f)", a0(0), a0(1), a0(2));
+//        ROS_INFO_THROTTLE(2, "sim position updated! v0=(%f, %f, %f)", v0(0), v0(1), v0(2));
+    }
+
+    if(fabs(p0(1))>DIRECTION_CHANGE_LEFT_SIZE && (p0(1))*(p_goal(1)) > 0 && DIRECTION_AUTO_CHANGE){
+        randomGoalGenerate();
     }
 }
 
+
+
+void dynamicObjectsCallback(const hist_kalman_mot::ObjectsInTracking &msg)
+{
+    dynamic_objects = msg;
+    if(!use_position_global_time){
+        global_time_now = ros::Time::now().toSec();
+    }
+    /// Update the position of dynamic objects by predicting with a linear model. The position is then treated as the center of position distribution
+    for(auto & ob_i : dynamic_objects.result){
+        double time_interval = global_time_now - ob_i.last_observed_time;
+        ob_i.position.x = ob_i.position.x + ob_i.velocity.x * time_interval;
+        ob_i.position.y = ob_i.position.y + ob_i.velocity.y * time_interval;
+        ob_i.position.z = ob_i.position.z + ob_i.velocity.z * time_interval;
+        double delt_t = global_time_now - ob_i.last_observed_time;
+        // ob_i.sigma = ob_i.sigma * 0.25 * delt_t * delt_t; //something wrong
+    }
+}
 
 void uavModeCallback(const mavros_msgs::State &msg)
 {
@@ -1409,12 +1759,63 @@ void sendMotorCommands(double yaw) // Range[-Pi, Pi], [0, 1]
 }
 
 
+void getParameterList(ros::NodeHandle nh){
+    /*** Read parameter list ***/
+    nh.getParam("/local_planning_gradient_sample/goal_position_x", p_goal(0));
+    nh.getParam("/local_planning_gradient_sample/goal_position_y", p_goal(1));
+    nh.getParam("/local_planning_gradient_sample/goal_position_z", p_goal(2));
+    p_goal_raw = p_goal;
+    Y_GOAL_TO_CENTER = fabs(p_goal(1));
+
+    nh.getParam("/local_planning_gradient_sample/MAX_V_XY", MAX_V_XY);
+    nh.getParam("/local_planning_gradient_sample/MAX_V_Z_UP", MAX_V_Z_UP);
+    nh.getParam("/local_planning_gradient_sample/MAX_V_Z_DOWN", MAX_V_Z_DOWN);
+    nh.getParam("/local_planning_gradient_sample/MAX_A", MAX_A);
+    nh.getParam("/local_planning_gradient_sample/distance_reference_length", pp.d_ref);
+    nh.getParam("/local_planning_gradient_sample/toward_goal_k1_xy", pp.k1_xy);
+    nh.getParam("/local_planning_gradient_sample/toward_goal_k1_z", pp.k1_z);
+    nh.getParam("/local_planning_gradient_sample/less_variation_k2_xy", pp.k2_xy);
+    nh.getParam("/local_planning_gradient_sample/less_variation_k2_z", pp.k2_z);
+    nh.getParam("/local_planning_gradient_sample/v_max_at_goal_ori", pp.v_max_at_goal_ori);
+    nh.getParam("/local_planning_gradient_sample/collision_threshold_static", pp.collision_threshold_static);
+    nh.getParam("/local_planning_gradient_sample/collision_threshold_dynamic", pp.collision_threshold_dynamic);
+    nh.getParam("/local_planning_gradient_sample/k_current_v", hp.k_current_v);
+    nh.getParam("/local_planning_gradient_sample/k_planned_direction", hp.k_planned_direction);
+    nh.getParam("/local_planning_gradient_sample/k_v_fluctuation", hp.k_v_fluctuation);
+    nh.getParam("/local_planning_gradient_sample/k_dynamic_objects", hp.k_dynamic_objects);
+    nh.getParam("/local_planning_gradient_sample/k_common_update", hp.k_common_update);
+    nh.getParam("/local_planning_gradient_sample/if_publish_panel_arrays", if_publish_panel_arrays);
+    nh.getParam("/local_planning_gradient_sample/CAMERA_H_FOV", CAMERA_H_FOV);
+    nh.getParam("/local_planning_gradient_sample/kp_xy", pt.kp_xy);
+    nh.getParam("/local_planning_gradient_sample/kp_z", pt.kp_z);
+    nh.getParam("/local_planning_gradient_sample/kp_yaw", pt.kp_yaw);
+    nh.getParam("/local_planning_gradient_sample/p_2_delt_v_max_xy", pt.p_2_delt_v_max_xy);
+    nh.getParam("/local_planning_gradient_sample/p_2_delt_v_max_z", pt.p_2_delt_v_max_z);
+    nh.getParam("/local_planning_gradient_sample/max_yaw_rate", pt.max_yaw_rate);
+    nh.getParam("/local_planning_gradient_sample/head_max_yaw_delt", head_max_yaw_delt);
+    nh.getParam("/local_planning_gradient_sample/motor_velocity_set", motor_velocity_set);
+    nh.getParam("/local_planning_gradient_sample/if_plan_vertical_path", if_plan_vertical_path);
+    nh.getParam("/local_planning_gradient_sample/if_in_simulation", if_in_simulation);
+    nh.getParam("/local_planning_gradient_sample/if_flyback_enable", if_flyback_enable);
+    nh.getParam("/local_planning_gradient_sample/HEIGHT_LIMIT", HEIGHT_LIMIT);
+    nh.getParam("/local_planning_gradient_sample/XY_LIMIT", XY_LIMIT);
+    nh.getParam("/local_planning_gradient_sample/PLAN_INIT_STATE_CHANGE_THRESHOLD", PLAN_INIT_STATE_CHANGE_THRESHOLD);
+    nh.getParam("/local_planning_gradient_sample/DIRECTION_CHANGE_LEFT_SIZE", DIRECTION_CHANGE_LEFT_SIZE);
+    nh.getParam("/local_planning_gradient_sample/DIRECTION_AUTO_CHANGE", DIRECTION_AUTO_CHANGE);
+    nh.getParam("/local_planning_gradient_sample/MAP_DELAY_SECONDS", MAP_DELAY_SECONDS);
+
+    if(if_in_simulation)  ROS_WARN("In simulation mode");
+
+    ROS_INFO("Parameters list reading finished! Goal position is: (%f, %f, %f), MAX Vel is %f", p_goal(0), p_goal(1), p_goal(2), MAX_V_XY);
+}
+
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "local_planning_gradient_sample");
     ros::NodeHandle nh;
 
-    setParameters();    /// use the parameters initialized in this function if not excuted by a launch file.
+    setParameters();    /// chg, use parameters defined here
     getParameterList(nh);
 
     if(if_flyback_enable){
@@ -1423,10 +1824,12 @@ int main(int argc, char** argv)
         max_sample_delt_angle = 1.67;
     }
 
-    trajectory_time_table->csv2pva_table(TABLE_PATH);
+    trajectory_time_table->csv2pva_table("/home/topup/chg_ws/src/tables/p3-84_v3_a4_res0-1.csv");
     ROS_WARN("trajectory_time_table loaded!");
 
     // State parameters initiate
+    global_time_now = ros::Time::now().toSec();
+
     p0 << 0.0, 0.0, 0.0;
     v0 << 0.0, 0.0, 0.0;
     a0 << 0.0, 0.0, 0.0;
@@ -1446,6 +1849,9 @@ int main(int argc, char** argv)
 
     ROS_INFO("Heading resolution = %f (rad), Fov = %f, valid_piece_num = %d", heading_resolution, CAMERA_H_FOV, valid_piece_num);
 
+    // Random seed
+    std::srand((unsigned)time(NULL));
+
     // ringbuffer cloud2
     cloud2_pub = nh.advertise<sensor_msgs::PointCloud2>("/ring_buffer/cloud_ob", 1, true);
     cloud_edf_pub = nh.advertise<sensor_msgs::PointCloud2>("/ring_buffer/edf", 1, true);
@@ -1455,6 +1861,7 @@ int main(int argc, char** argv)
     current_marker_pub = nh.advertise<visualization_msgs::Marker>("/visualization_marker", 1);
 
     motor_pub = nh.advertise<geometry_msgs::Point32>("/place_velocity_info_corrected", 1, true); 
+    ros::Subscriber dynamic_objects_sub = nh.subscribe("/mot/objects_in_tracking", 1, dynamicObjectsCallback);
     pva_pub = nh.advertise<trajectory_msgs::JointTrajectoryPoint>("/pva_setpoint", 1, true);
 
     ros::Subscriber mode_sub, position_isolate_sub, velocity_isolate_sub, motor_sub, cloud_sub, sim_odom_isolate_sub;
@@ -1475,10 +1882,11 @@ int main(int argc, char** argv)
         sync_ = new message_filters::Synchronizer<mapSyncPolicy>(mapSyncPolicy(10), *motor_sub, *cloud_sub);
         sync_->registerCallback(boost::bind(&cloudCallback, _1, _2));
 
-        head_cmd_pub = nh.advertise<geometry_msgs::Point32>("/gimbal_commands", 2, true);
+        head_cmd_pub = nh.advertise<geometry_msgs::Point32>("/gimbal_commands", 2, true); 
     }else{
          /*** For simulation test***/
         offboard_ready = true;
+
         sim_odom_isolate_sub = nh.subscribe("/iris/ground_truth/odometry", 1, simPositionVelocityCallback);
 
         typedef message_filters::sync_policies::ApproximateTime<control_msgs::JointControllerState,sensor_msgs::PointCloud2> mapSyncPolicy;
@@ -1495,6 +1903,11 @@ int main(int argc, char** argv)
         if(if_sim_lee_position_controller){
             sim_trajectory_pub = nh.advertise<geometry_msgs::Pose>("/trajectory_setpoint", 2, true);
         }
+
+        if(DIRECTION_AUTO_CHANGE){
+            randomGoalGenerate();
+        }
+        
     }
 
     // timer for publish ringbuffer as pointcloud
@@ -1513,7 +1926,6 @@ int main(int argc, char** argv)
 
     std::cout << "Start mapping!" << std::endl;
 
-    // ros::spin();
     ros::AsyncSpinner spinner(3); // Use 3 threads
     spinner.start();
     ros::waitForShutdown();
@@ -1521,51 +1933,11 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void getParameterList(ros::NodeHandle nh){
-    /*** Read parameter list ***/
-    nh.getParam("/local_planning_gradient_sample/goal_position_x", p_goal(0));
-    nh.getParam("/local_planning_gradient_sample/goal_position_y", p_goal(1));
-    nh.getParam("/local_planning_gradient_sample/goal_position_z", p_goal(2));
-    nh.getParam("/local_planning_gradient_sample/MAX_V_XY", MAX_V_XY);
-    nh.getParam("/local_planning_gradient_sample/MAX_V_Z_UP", MAX_V_Z_UP);
-    nh.getParam("/local_planning_gradient_sample/MAX_V_Z_DOWN", MAX_V_Z_DOWN);
-    nh.getParam("/local_planning_gradient_sample/MAX_A", MAX_A);
-    nh.getParam("/local_planning_gradient_sample/distance_reference_length", pp.d_ref);
-    nh.getParam("/local_planning_gradient_sample/toward_goal_k1_xy", pp.k1_xy);
-    nh.getParam("/local_planning_gradient_sample/toward_goal_k1_z", pp.k1_z);
-    nh.getParam("/local_planning_gradient_sample/less_variation_k2_xy", pp.k2_xy);
-    nh.getParam("/local_planning_gradient_sample/less_variation_k2_z", pp.k2_z);
-    nh.getParam("/local_planning_gradient_sample/observation_direction_k3_xy", pp.k3_xy);
-    nh.getParam("/local_planning_gradient_sample/observation_direction_k3_z", pp.k3_z);
-
-    nh.getParam("/local_planning_gradient_sample/v_max_at_goal_ori", pp.v_max_at_goal_ori);
-    nh.getParam("/local_planning_gradient_sample/collision_threshold_static", pp.collision_threshold_static);
-    nh.getParam("/local_planning_gradient_sample/k_current_v", hp.k_current_v);
-    nh.getParam("/local_planning_gradient_sample/k_planned_direction", hp.k_planned_direction);
-    nh.getParam("/local_planning_gradient_sample/k_v_fluctuation", hp.k_v_fluctuation);
-    nh.getParam("/local_planning_gradient_sample/k_common_update", hp.k_common_update);
-    nh.getParam("/local_planning_gradient_sample/if_publish_panel_arrays", if_publish_panel_arrays);
-    nh.getParam("/local_planning_gradient_sample/CAMERA_H_FOV", CAMERA_H_FOV);
-
-    nh.getParam("/local_planning_gradient_sample/head_max_yaw_delt", head_max_yaw_delt);
-    nh.getParam("/local_planning_gradient_sample/motor_velocity_set", motor_velocity_set);
-    nh.getParam("/local_planning_gradient_sample/if_plan_vertical_path", if_plan_vertical_path);
-    nh.getParam("/local_planning_gradient_sample/if_in_simulation", if_in_simulation);
-    nh.getParam("/local_planning_gradient_sample/if_flyback_enable", if_flyback_enable);
-    // nh.getParam("/local_planning_gradient_sample/HEIGHT_LIMIT", HEIGHT_LIMIT);
-    // nh.getParam("/local_planning_gradient_sample/XY_LIMIT", XY_LIMIT);
-    nh.getParam("/local_planning_gradient_sample/PLAN_INIT_STATE_CHANGE_THRESHOLD", PLAN_INIT_STATE_CHANGE_THRESHOLD);
-    nh.getParam("/local_planning_gradient_sample/TABLE_PATH", TABLE_PATH);
-
-    p_goal_raw = p_goal;
-    if(if_in_simulation)  ROS_WARN("In simulation mode");
-
-    ROS_INFO("Parameters list reading finished! Goal position is: (%f, %f, %f), MAX Vel is %f", p_goal(0), p_goal(1), p_goal(2), MAX_V_XY);
-}
 
 void setParameters(){
     p_goal(0) = 0.0;
     p_goal(1)=15.0;
+    Y_GOAL_TO_CENTER = fabs(p_goal(1));
     p_goal(2)=1.0;
     p_goal_raw = p_goal;
 
@@ -1578,17 +1950,22 @@ void setParameters(){
     pp.k1_z = 4.0;
     pp.k2_xy = 2.0;
     pp.k2_z = 2.0;
-    pp.k3_xy = 0.5;
-    pp.k3_z = 0.5;
     pp.v_max_at_goal_ori = 1.5;
     pp.collision_threshold_static = 0.6;
+    pp.collision_threshold_dynamic = 0.85;
     hp.k_current_v = 0.7;
     hp.k_planned_direction = 0.2;
     hp.k_v_fluctuation = 0.4;
+    hp.k_dynamic_objects = 1.0;
     hp.k_common_update = 0.1;
     if_publish_panel_arrays = true;
     CAMERA_H_FOV = 62;
-
+    pt.kp_xy = 0.18;
+    pt.kp_z = 0.13;
+    pt.kp_yaw = 0.05;
+    pt.p_2_delt_v_max_xy = 0.7;
+    pt.p_2_delt_v_max_z = 0.4;
+    pt.max_yaw_rate = 1.0;
     head_max_yaw_delt = 0.5;
     motor_velocity_set = 50;
     if_plan_vertical_path = true;
@@ -1597,11 +1974,12 @@ void setParameters(){
     HEIGHT_LIMIT = 1.8;
     XY_LIMIT = 15.0;
     PLAN_INIT_STATE_CHANGE_THRESHOLD = 0.15;
-
-    TABLE_PATH = "/home/topup/chg_ws/src/tables/p3-84_v3_a4_res0-1.csv";
+    DIRECTION_CHANGE_LEFT_SIZE = 10.0;
+    DIRECTION_AUTO_CHANGE = true;
+    MAP_DELAY_SECONDS = 0.05;
 }
 
 
-// Created by clarence on 19-8-29.
+// Created by Clarence on 19-8-29.
 //
 
