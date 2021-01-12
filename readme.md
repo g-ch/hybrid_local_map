@@ -14,7 +14,7 @@ catkin_make
 ## Simulation Result
 
 <figure class="half">
-  <img src="images/Map1.PNG" width = "200"/><img src="images/Map2.PNG" width = "200"/>
+  <img src="images/Map1.PNG" width = "300"/><img src="images/Map2.PNG" width = "300"/>
 </figure>
 
 - Tabel I Simulation Test Results in Map (A)
@@ -52,10 +52,15 @@ catkin_make
 - The Intel Realsense D435 is unable to detect the obstacles that are too thin or too tiny. In our test, a stick with the diameter of 2 cm can only be partially detected within 2.7 m and fully detected within 2 m.
 - During high speed flight, Realsense D435 could have non-negligible motion blur. We did a test to measure this motion blur in our work *Bio-inspired Obstacle Avoidance for Flying Robots with Active Sensing*. The depth estimation error caused by the motion blur is shown in the image below, where the x-axis is the relative velocity between the camera and the obstacle.
 
+<img src="images/motionBlur.PNG" width = "800"/>
+
 ### **Test video**
 
 See:
 <https://youtu.be/zgIZDW39KJs>
+
+Test scenarios:
+<img src="images/RealScenarios.PNG" width = "800"/>
 
 # Citation
 G. Chen, D. Sun, W. Dong, X. Sheng, X. Zhu, and H. Ding, "Efficient Local Trajectory Planning for High Speed Flight of a Quadrotor with Active Sensing", 2021. (Under revision)
