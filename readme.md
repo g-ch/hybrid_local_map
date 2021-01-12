@@ -20,21 +20,31 @@ Map (a) is composed of cylinders with random positions to simulate a forest.
 
 Map (b) is a parking lot with various vehicles and some natural trees.
 
+Twenty trials were tested in each map.
+
 - Tabel I Simulation Test Results in Map (A)
 
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
+| MPFM [1]        | 48.5             | 0               | 11            |
+| MPFM Aggressive*| 48.5             | 0               | 11            |
 | U. Sampling [2] | 31.9s            | 0               | 0             |
-| MAPF [3]        | xxx              | xxx             | xxx           |
 | Our Planner     | 25.0s            | 0               | 0             |
 
 - Tabel II Simulation Test Results in Map (B) 
 
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
+| MPFM [1]        | 72.9s            | 0               | 0             |
+| MPFM Aggressive*| 48.5             | 0               | 11            |
 | U. Sampling [2] | 44.9s            | 5               | 2             |
-| MAPF [3]        | xxx              | xxx             | xxx           |
 | Our Planner     | 42.7s            | 0               | 0             |
+
+[1] T. T. Mac, C. Copot, A. Hernandez, and R. De Keyser, “Improved potential field method for unknown obstacle avoidance using uav in indoor environment,” in 2016 IEEE 14th International Symposium on Applied Machine Intelligence and Informatics (SAMI), 2016, pp. 345–350.
+
+[2] B. T. Lopez and J. P. How, “Aggressive 3-d collision avoidance for high-speed navigation.” in International Conference on Robotics and Automation (ICRA). IEEE, 2017, pp. 5759–5765.
+
+* We use the forces given by MPFM to generate acceleration setpoint directly to realize high-speed flight.
 
 ## Realworld Tests
 ### Qaudrotor Specification
