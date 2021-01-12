@@ -13,9 +13,7 @@ catkin_make
 # Test Results
 ## Simulation Result
  <img src="images/Map1.PNG" width = "300" height = "200" alt="Map1" align=center />
-
-![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map1.PNG=400x200 "Map1")
-![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map2.PNG=400x200 "Map2")
+ <img src="images/Map2.PNG" width = "300" height = "200" alt="Map2" align=center />
 
 - Tabel I Simulation Test Results in Map (A)
 
