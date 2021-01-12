@@ -26,8 +26,8 @@ Twenty trials were tested in each map.
 
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
-| MPFM [1]        | 48.5             | 0               | 11            |
-| MPFM Aggressive*| 48.5             | 0               | 11            |
+| MPFM [1]        | 48.5s            | 0               | 11            |
+| MPFM Aggressive*| 26.7s            | 6               | 4             |
 | U. Sampling [2] | 31.9s            | 0               | 0             |
 | Our Planner     | 25.0s            | 0               | 0             |
 
@@ -36,7 +36,7 @@ Twenty trials were tested in each map.
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | MPFM [1]        | 72.9s            | 0               | 0             |
-| MPFM Aggressive*| 48.5             | 0               | 11            |
+| MPFM Aggressive*| 35.8s            | 14              | 0             |
 | U. Sampling [2] | 44.9s            | 5               | 2             |
 | Our Planner     | 42.7s            | 0               | 0             |
 
