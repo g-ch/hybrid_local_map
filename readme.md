@@ -12,14 +12,14 @@ catkin_make
 ```
 # Test Results
 ## Simulation Result
-<center> Tabel I Simulation Test Results in Map (A) </center>
+- Tabel I Simulation Test Results in Map (A)
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | U. Sampling [2] | 31.9s            | 0               | 0             |
 | MAPF [3]        | xxx              | xxx             | xxx           |
 | Our Planner     | 25.0s            | 0               | 0             |
 
-+ <center> Tabel II Simulation Test Results in Map (B) </center>
+- Tabel II Simulation Test Results in Map (B) 
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | U. Sampling [2] | 44.9s            | 5               | 2             |
@@ -28,20 +28,18 @@ catkin_make
 
 ## Realworld Tests
 - Qaudrotor Specification
-<center> Tabel III Qaudrotor Specification </center>
-
 | Rotor Base | Propeller Size | Motor           | Weight | Flight Controller | Onboard Computer |
 |------------|----------------|-----------------|--------|-------------------|------------------|
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
 
 - Sensor Specification
-<center> Tabel IV Sensor Specification </center>
-
 | Sensor          | Property                                                             | Usage                                                            |
 |-----------------|----------------------------------------------------------------------|------------------------------------------------------------------|
 | Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz. Depth image resolution: 424x240 |
 | Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
 | FT motor SM30BL | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
+
+-Test video
 
 
 # Citation
