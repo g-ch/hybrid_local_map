@@ -44,6 +44,7 @@ catkin_make
 | FT motor SM30BL | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
 
 - Test video
+
 <iframe height=720 width=100% src=" https://youtu.be/zgIZDW39KJs" frameborder=0 allowfullscreen></iframe>
 
 # Citation
