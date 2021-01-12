@@ -12,6 +12,8 @@ catkin_make
 ```
 # Test Results
 ## Simulation Result
+- Test scenarios:
+
 <img src="images/Map1and2.PNG" width = "600"/>
 
 Map (a) is composed of cylinders with random positions to simulate a forest. Map (b) is a parking lot with various vehicles and some natural trees.
@@ -58,7 +60,7 @@ Map (a) is composed of cylinders with random positions to simulate a forest. Map
 See:
 <https://youtu.be/zgIZDW39KJs>
 
-Test scenarios:
+- Test scenarios:
 
 <img src="images/RealScenarios.PNG" width = "600"/>
 
