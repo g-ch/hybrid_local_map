@@ -13,10 +13,13 @@ catkin_make
 # Test Results
 ## Simulation Result
 
-<figure class="half">
-  <img src="images/Map1.PNG"/>
-  <img src="images/Map2.PNG"/>
-</figure>
+<img src="images/Map1.PNG" width = "600"/>
+
+Map (A) Random cylinders
+                                    
+<img src="images/Map2.PNG" width = "600">
+
+Map (B) Parking lot
 
 - Tabel I Simulation Test Results in Map (A)
 
