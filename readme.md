@@ -14,8 +14,8 @@ catkin_make
 ## Simulation Result
 
 <figure class="half">
-  <img src="images/Map1.PNG" width = "300"/>
-  <img src="images/Map2.PNG" width = "300"/>
+  <img src="images/Map1.PNG"/>
+  <img src="images/Map2.PNG"/>
 </figure>
 
 - Tabel I Simulation Test Results in Map (A)
@@ -61,6 +61,7 @@ See:
 <https://youtu.be/zgIZDW39KJs>
 
 Test scenarios:
+
 <img src="images/RealScenarios.PNG" width = "600"/>
 
 # Citation
