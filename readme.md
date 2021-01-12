@@ -34,6 +34,13 @@ catkin_make
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
 
 - Sensor Specification
++ <center> Tabel IV Sensor Specification </center>
+| Sensor          | Property                                                             | Usage                                                            |
+|-----------------|----------------------------------------------------------------------|------------------------------------------------------------------|
+| Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz. Depth image resolution: 424x240 |
+| Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
+| FT motor SM30BL | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
+
 
 # Citation
 G. Chen, D. Sun, W. Dong, X. Sheng, X. Zhu, and H. Ding, "Efficient Local Trajectory Planning for High Speed Flight of a Quadrotor with Active Sensing", 2021. (Under revision)
