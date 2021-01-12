@@ -69,11 +69,15 @@ See:
 # Citation
 
 ```
-G. Chen, D. Sun, W. Dong, X. Sheng, X. Zhu, and H. Ding, "Efficient Local Trajectory Planning for High Speed Flight of a Quadrotor with Active Sensing", 2021. (Under revision)
+@@inproceedings{ActiveSensing,
+title={Efficient Local Trajectory Planning for High Speed Flight of a Quadrotor with Active Sensing},
+author={Chen, Gang and Sun, Dongxiao and Dong, Wei and Sheng, Xinjun and Zhu, Xiangyang and Ding, Han},
+journal={Under revision},
+year={2021}}
 ```
 
 ```
-@article{ActiveSensing,
+@@inproceedings{ActiveSensing,
 title={Bio-inspired Obstacle Avoidance for Flying Robots with Active Sensing},
 author={Chen, Gang and Dong, Wei and Sheng, Xinjun and Zhu, Xiangyang and Ding, Han},
 journal={arXiv preprint arXiv:2010.04977},
