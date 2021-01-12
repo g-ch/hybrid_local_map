@@ -12,7 +12,7 @@ catkin_make
 ```
 # Test Results
 ## Simulation Result
-+ <center> Tabel I Simulation Test Results in Map (A) </center>
+<center> Tabel I Simulation Test Results in Map (A) </center>
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | U. Sampling [2] | 31.9s            | 0               | 0             |
@@ -28,7 +28,7 @@ catkin_make
 
 ## Realworld Tests
 - Qaudrotor Specification
-+ <center> Tabel III Qaudrotor Specification </center>
+<center> Tabel III Qaudrotor Specification </center>
 | Rotor Base | Propeller Size | Motor           | Weight | Flight Controller | Onboard Computer |
 |------------|----------------|-----------------|--------|-------------------|------------------|
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
