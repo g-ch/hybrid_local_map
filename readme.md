@@ -29,21 +29,25 @@ catkin_make
 | Our Planner     | 42.7s            | 0               | 0             |
 
 ## Realworld Tests
-- Qaudrotor Specification
+### Qaudrotor Specification
 
 | Rotor Base | Propeller Size | Motor           | Weight | Flight Controller | Onboard Computer |
 |------------|----------------|-----------------|--------|-------------------|------------------|
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
 
-- Sensor Specification
+### Sensor Specification
 
-| Sensor          | Property                                                             | Usage                                                            |
-|-----------------|----------------------------------------------------------------------|------------------------------------------------------------------|
-| Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz. Depth image resolution: 424x240 |
-| Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
-| FT motor SM30BL | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
+| Sensor                | Property                                                             | Usage                                                            |
+|-----------------------|----------------------------------------------------------------------|------------------------------------------------------------------|
+| Intel Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz.                                 |
+| Intel Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
+| FT motor SM30BL       | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
 
-- **Test video**
+**NOTE:**
+- The Intel Realsense D435 is unable to detect the obstacles that are too thin or too tiny. In our test, a stick with the diameter of 2 cm can only be partially detected within 2.7 m and fully detected within 2 m.
+- During high speed flight, Realsense D435 could have non-negligible motion blur. We did a test to measure this motion blur in our work *Bio-inspired Obstacle Avoidance for Flying Robots with Active Sensing*. The depth estimation error caused by the motion blur is shown in the image below, where the x-axis is the relative velocity between the camera and the obstacle.
+
+### **Test video**
 
 See:
 <https://youtu.be/zgIZDW39KJs>
