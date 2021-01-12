@@ -13,6 +13,7 @@ catkin_make
 # Test Results
 ## Simulation Result
 - Tabel I Simulation Test Results in Map (A)
+
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | U. Sampling [2] | 31.9s            | 0               | 0             |
@@ -20,6 +21,7 @@ catkin_make
 | Our Planner     | 25.0s            | 0               | 0             |
 
 - Tabel II Simulation Test Results in Map (B) 
+
 | Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
 | U. Sampling [2] | 44.9s            | 5               | 2             |
@@ -28,11 +30,13 @@ catkin_make
 
 ## Realworld Tests
 - Qaudrotor Specification
+
 | Rotor Base | Propeller Size | Motor           | Weight | Flight Controller | Onboard Computer |
 |------------|----------------|-----------------|--------|-------------------|------------------|
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
 
 - Sensor Specification
+
 | Sensor          | Property                                                             | Usage                                                            |
 |-----------------|----------------------------------------------------------------------|------------------------------------------------------------------|
 | Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz. Depth image resolution: 424x240 |
