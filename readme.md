@@ -13,10 +13,8 @@ catkin_make
 # Test Results
 ## Simulation Result
 
-<center>
-<figure>
- <img src="images/Map1.PNG" width = "300" height = "200" alt="Map1" /><img src="images/Map2.PNG" width = "300" height = "200" alt="Map2" />
-</figure>
+<center class="half">
+<img src="images/Map1.PNG" width = "300" height = "200" alt="Map1" /><img src="images/Map2.PNG" width = "300" height = "200" alt="Map2" />
 </center>
 
 - Tabel I Simulation Test Results in Map (A)
