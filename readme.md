@@ -43,7 +43,7 @@ catkin_make
 | Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
 | FT motor SM30BL | Angle resolution: 0.088° Max torque: 10kg*com                        | Control the active sensing camera and measure its angle.         |
 
-- Test video
+- **Test video**
 
 See:
 <https://youtu.be/zgIZDW39KJs>
