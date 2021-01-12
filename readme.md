@@ -44,7 +44,7 @@ Twenty trials were tested in each map.
 
 [2] B. T. Lopez and J. P. How, “Aggressive 3-d collision avoidance for high-speed navigation.” in International Conference on Robotics and Automation (ICRA). IEEE, 2017, pp. 5759–5765.
 
-* We use the forces given by MPFM to generate acceleration setpoint directly to realize high-speed flight.
+*We use the forces given by MPFM to generate acceleration setpoint directly to realize high-speed flight.
 
 ## Realworld Tests
 ### Qaudrotor Specification
