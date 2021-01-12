@@ -67,7 +67,10 @@ See:
 <img src="images/RealScenarios.PNG" width = "600"/>
 
 # Citation
+
+```
 G. Chen, D. Sun, W. Dong, X. Sheng, X. Zhu, and H. Ding, "Efficient Local Trajectory Planning for High Speed Flight of a Quadrotor with Active Sensing", 2021. (Under revision)
+```
 
 ```
 @article{ActiveSensing,
