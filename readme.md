@@ -12,6 +12,9 @@ catkin_make
 ```
 # Test Results
 ## Simulation Result
+<img src="images/Map1and2.PNG" width = "600"/>
+
+Map (a) is composed of cylinders with random positions to simulate a forest. Map (b) is a parking lot with various vehicles and some natural trees.
 
 - Tabel I Simulation Test Results in Map (A)
 
