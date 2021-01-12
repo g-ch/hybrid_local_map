@@ -13,8 +13,8 @@ catkin_make
 # Test Results
 ## Simulation Result
 
-![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map1.PNG "Map1")
-![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map2.PNG "Map2")
+![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map1.PNG=400x200 "Map1")
+![avatar](https://github.com/g-ch/hybrid_local_map/blob/gradient_sample_publish_edition/images/Map2.PNG=400x200 "Map2")
 
 - Tabel I Simulation Test Results in Map (A)
 
