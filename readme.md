@@ -88,4 +88,4 @@ year={2020}}
 + New BSD License 
 
 # Acknowledgement
-We thank Shuhan He and Boyu Zhou for their help on this work.
+We thank Shuhan He, Jiayi Li and Boyu Zhou for their help on this work.
