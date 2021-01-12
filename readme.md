@@ -29,12 +29,14 @@ catkin_make
 ## Realworld Tests
 - Qaudrotor Specification
 <center> Tabel III Qaudrotor Specification </center>
+
 | Rotor Base | Propeller Size | Motor           | Weight | Flight Controller | Onboard Computer |
 |------------|----------------|-----------------|--------|-------------------|------------------|
 | 210 mm     | 5 inches       | T-motor F40 Pro | 1.2 kg | Pixracer          | Up core board    |
 
 - Sensor Specification
-+ <center> Tabel IV Sensor Specification </center>
+<center> Tabel IV Sensor Specification </center>
+
 | Sensor          | Property                                                             | Usage                                                            |
 |-----------------|----------------------------------------------------------------------|------------------------------------------------------------------|
 | Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz. Depth image resolution: 424x240 |
