@@ -61,7 +61,7 @@ Twenty trials were tested in each map.
 | Intel Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
 | FT motor SM30BL       | Angle resolution: 0.088° Max torque: 10kg*com                        | To control the active sensing camera and measure its angle.      |
 
-**NOTE:**
+**Limitations:**
 - The state estimation given by the V-SLAM algorithm of Intel Realsense T265 might drift in some scenarios. For example, when the grass and leaves are waving because of the wind from the propeller or the natural wind in a woods, the state estimation from the V-SLAM would drift obviously. State estimation drifting could cause crashes during the flight. Our real-world tests were conducted in the scenarios where the drifting is small (we consider the drifting small if the quadrotor can hover stably). 
 - The Intel Realsense D435 is unable to detect the obstacles that are too thin or too tiny. In our test, a stick with the diameter of 2 cm can only be partially detected within 2.7 m and fully detected within 2 m. When the sunlight is very strong, the depth data might be noisy.
 - During high speed flight, Realsense D435 could have non-negligible motion blur. We did a test to measure this motion blur in our work *Bio-inspired Obstacle Avoidance for Flying Robots with Active Sensing*. The depth estimation error caused by the motion blur is shown in the image below, where the x-axis is the relative velocity between the camera and the obstacle.
