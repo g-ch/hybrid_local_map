@@ -71,7 +71,7 @@ Twenty trials were tested in each map.
 ### **Test video**
 
 See:
-<https://youtu.be/zgIZDW39KJs>
+<https://youtu.be/07Mtvn71aVM>
 
 - Test scenarios:
 
