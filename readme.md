@@ -55,11 +55,12 @@ Twenty trials were tested in each map.
 
 ### Sensor Specification
 
-| Sensor                | Property                                                             | Usage                                                            |
-|-----------------------|----------------------------------------------------------------------|------------------------------------------------------------------|
-| Intel Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz.                                 |
-| Intel Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                    |
-| FT motor SM30BL       | Angle resolution: 0.088° Max torque: 10kg*com                        | To control the active sensing camera and measure its angle.      |
+| Sensor                | Property                                                             | Usage                                                                |
+|-----------------------|----------------------------------------------------------------------|----------------------------------------------------------------------|
+| Intel Realsense D435  | Max Range: about 10m FOV: 86°x 57°                                   | To generate pointclouds at 30Hz.                                     |
+| Intel Realsense T265  | Providing under 1% closed  loop drift under intended use conditions. | To provide state estimation of the quadrotor.                        |
+| FT motor SM30BL       | Angle resolution: 0.088° Max torque: 10kg*cm                        | To control the active sensing camera and measure its angle.          |
+| MPU9250               | Invensense MPU9250 Accel/Gyro/Mag (4 KHz)                           | Integrated by the Pixracer controller to measure for state esimation |
 
 **Limitations:**
 - The state estimation given by the V-SLAM algorithm of Intel Realsense T265 might drift in some scenarios. For example, when the grass and leaves are waving because of the wind from the propeller or the natural wind in a woods, the state estimation from the V-SLAM would drift obviously. State estimation drifting could cause crashes during the flight. Our real-world tests were conducted in the scenarios where the drifting is small (we consider the drifting small if the quadrotor can hover stably). 
