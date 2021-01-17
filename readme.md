@@ -4,7 +4,7 @@ This repository is for paper *Efficient Local Trajectory Planning for High Speed
 - Ubuntu 18.04, ROS Melodic
 # Building Dependencies
 - Eigen
-- [Ewok](https://github.com/VladyslavUsenko/ewok/tree/master/ewok_ring_buffer/include/ewok). A version with our required IO functions is included in nags_planning/include.
+- [Ewok](https://github.com/VladyslavUsenko/ewok/tree/master/ewok_ring_buffer/include/ewok). A version with our required IO functions is included in *nags_planning/include*.
 # Building Steps
 Clone this repository to your ROS workspace and run
 ```
