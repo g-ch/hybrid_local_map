@@ -1,3 +1,20 @@
+/**
+* This file is modified from Ewok.
+*
+* Ewok is free software: you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Ewok is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public License
+* along with Ewok. If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef EWOK_RING_BUFFER_INCLUDE_EWOK_ED_NOR_RING_BUFFER_H_
 #define EWOK_RING_BUFFER_INCLUDE_EWOK_ED_NOR_RING_BUFFER_H_
 
@@ -6,7 +23,6 @@
 #include <deque>
 #include <vector>
 
-#include <pcl/features/normal_3d.h>
 #include <pcl/point_types.h>
 #include <pcl/search/kdtree.h>
 #include <iostream>
@@ -14,7 +30,7 @@
 namespace ewok
 {
 template <int _POW, typename _Datatype = int16_t, typename _Scalar = float, typename _Flag = uint8_t>
-class EuclideanDistanceNormalRingBuffer
+class EuclideanDistanceCheckingRingBuffer
 {
   public:
     static const int _N = (1 << _POW);  // 2 to the power of POW
@@ -25,9 +41,9 @@ class EuclideanDistanceNormalRingBuffer
     typedef Eigen::Matrix<int, 3, 1> Vector3i;
     typedef std::vector<Vector4, Eigen::aligned_allocator<Vector4>> PointCloud;
 
-    typedef std::shared_ptr<EuclideanDistanceNormalRingBuffer<_POW, _Datatype, _Scalar, _Flag>> Ptr;
+    typedef std::shared_ptr<EuclideanDistanceCheckingRingBuffer<_POW, _Datatype, _Scalar, _Flag>> Ptr;
 
-    EuclideanDistanceNormalRingBuffer(const _Scalar &resolution, const _Scalar &truncation_distance)
+    EuclideanDistanceCheckingRingBuffer(const _Scalar &resolution, const _Scalar &truncation_distance)
       : resolution_(resolution)
       , truncation_distance_(truncation_distance)
       , occupancy_buffer_(resolution)

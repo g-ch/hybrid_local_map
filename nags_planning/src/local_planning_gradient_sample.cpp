@@ -1,4 +1,4 @@
-#include <ewok/ed_nor_ring_buffer.h>
+#include <ewok/ed_ckecking_ring_buffer.h>
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
 #include <message_filters/subscriber.h>
@@ -42,7 +42,7 @@ const double trunc_distance = 1.0;
 static const int POW = 6;
 static const int N = (1 << POW);
 const float SEND_DURATION = 0.0250f; //40Hz (10HZ at least)
-ewok::EuclideanDistanceNormalRingBuffer<POW> rrb(resolution, trunc_distance); //Distance truncation threshold
+ewok::EuclideanDistanceCheckingRingBuffer<POW> rrb(resolution, trunc_distance); //Distance truncation threshold
 
 const int LOOKING_PIECES_SIZE = 16; // Should be even, Resolution: 22.5 degrees one piece. MID=7. Yaw=0. Larger: 7 - 15 :  0 to Pi;  Smaller: 7-0 : 0 to (nearly)-Pi;
 float CAMERA_H_FOV = 62.f;  //degrees, in parameter list
@@ -434,7 +434,7 @@ void cloudCallback(const control_msgs::JointControllerStateConstPtr &motor_msg, 
 
     // compute ewol pointcloud and origin
     Eigen::Vector3f origin = (transform * Eigen::Vector4f(0, 0, 0, 1)).head<3>(); //  position (x,y,z)
-    ewok::EuclideanDistanceNormalRingBuffer<POW>::PointCloud cloud_ew;
+    ewok::EuclideanDistanceCheckingRingBuffer<POW>::PointCloud cloud_ew;
     std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ> > points = cloud_2->points; //  cloud_2->points;
 
     x_centre = p0(0);

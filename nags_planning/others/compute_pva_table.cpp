@@ -118,7 +118,6 @@ int main() {
     pva_table *test_table1;
 
     test_table1 = (pva_table*)malloc(sizeof(pva_table));
-    // test_table2 = (pva_table*)malloc(sizeof(pva_table));
 
     auto start_t = std::chrono::steady_clock::now();
 
@@ -130,44 +129,10 @@ int main() {
 
     std::cout << "Compute time is: " << compute_t << std::endl;
 
-
-    // auto start_t = std::chrono::steady_clock::now();
-
-    // test_table1->csv2pva_table("test1.csv");
-
-    // auto finish_t = std::chrono::steady_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish_t - start_t);
-    // double io_t = duration.count()/(double)1000;
-
-    // std::cout << "IO time is: " << io_t << std::endl;
-
-    // double res;
-    // res = test_table1->query_pva_table(-2, -3, -3, -2);
-    // // std::cout << res << std::endl;
-    // res = test_table1->query_pva_table(-2, -3, -2.2, 1.6);
-    // // std::cout << res << std::endl;
-
-    // Query time test
-    // auto s_t = std::chrono::steady_clock::now();
-    // for (uint64_t i = 0; i < 1000; ++i) {
-    //     res = test_table1->query_pva_table(0, 2.4, -2.2, 1.6);
-    // }
-    // auto f_t = std::chrono::steady_clock::now();
-    // auto d = std::chrono::duration_cast<std::chrono::microseconds>(f_t - s_t);
-    // double query_t = d.count()/(double)1000;
-
-    // std::cout << "Query time is: " << query_t << std::endl;
-
     test_table1->pva_table2csv("p3-2_v1-5_a2_res0-1.csv");
 
-    // test_table2->csv2pva_table("test1.csv");
-
-    // test_table2->pva_table2csv("test2.csv");
-
     test_table1->free_pva_table();
-    // test_table2->free_pva_table();
 
-    // free(test_table2);
     free(test_table1);
 
     return 0;
@@ -247,10 +212,6 @@ void compute_pva_table(double p_limit, double v_limit, double a_limit, double re
                             table->table[idx] = T;
                             break;
                         }
-
-                        // auto ite_current_t = std::chrono::steady_clock::now();
-                        // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(ite_current_t - ite_start_t);
-                        // double ite_t = duration.count()/(double)1000;
 
                         if (T >= max_T) {
                             table->table[idx] = -1.0;

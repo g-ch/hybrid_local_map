@@ -2,14 +2,23 @@ This repository is for paper *Efficient Local Trajectory Planning for High Speed
 # Building Environment
 - Ubuntu 16.04, ROS Kinetic
 - Ubuntu 18.04, ROS Melodic
+
 # Building Dependencies
 - Eigen
+- PCL
 - [Ewok](https://github.com/VladyslavUsenko/ewok/tree/master/ewok_ring_buffer/include/ewok). A version with our required IO functions is included in *nags_planning/include*.
+
 # Building Steps
 Clone this repository to your ROS workspace and run
 ```
 catkin_make
 ```
+
+# Usage
+- Set the state limitation parameters in */nags_planning/others/compute_pva_table.cpp* and then compile and run this cpp to calculate a state limitation table to get the time for each motion primitive. The calculation may take a long time and is suggested to be concudted in a high-performance computer.
+- Copy the computed table to the onboard computer. Modify the parameters in */nags_planning/cfg/setting.yaml* to set the parameters for the planner. The path of this table should be replaced.
+- Launch */nags_planning/launch/local_planning_gradient_sample.launch*.
+
 # Test Results
 ## Simulation Result
 - Test scenarios:
@@ -97,7 +106,8 @@ year={2020}}
 ```
 
 # License
-+ New BSD License 
++ The head files in *nags_planning/include* follows the LGPLv3 License.
++ The rest code is licensed under the New BSD License. 
 
 # Acknowledgement
 We thank Shuhan He, Jiayi Li and Boyu Zhou for their help on this work.
