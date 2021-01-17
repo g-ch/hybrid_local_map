@@ -34,7 +34,7 @@ Twenty trials were tested in each map.
 - Tabel II Simulation Test Results in Map (B) 
 
 | Algorithm       | Avg.Sample Times | Avg. Flight Time | Collision Times | Trapped Times |
-|-----------------|------------------|-----------------|---------------|
+|-----------------|------------------|------------------|-----------------|---------------|
 | MPFM [1]        | -                | 72.9s            | 0               | 0             |
 | MPFM Aggressive*| -                | 35.8s            | 14              | 0             |
 | U. Sampling [2] | 12.7             | 44.9s            | 5               | 2             |
