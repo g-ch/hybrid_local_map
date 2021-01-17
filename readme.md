@@ -24,21 +24,21 @@ Twenty trials were tested in each map.
 
 - Tabel I Simulation Test Results in Map (A)
 
-| Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
-|-----------------|------------------|-----------------|---------------|
-| MPFM [1]        | 48.5s            | 0               | 11            |
-| MPFM Aggressive*| 26.7s            | 6               | 4             |
-| U. Sampling [2] | 31.9s            | 0               | 0             |
-| Our Planner     | 25.0s            | 0               | 0             |
+| Algorithm       | Avg.Sample Times | Avg. Flight Time | Collision Times | Trapped Times |
+|-----------------|------------------|------------------|-----------------|---------------|
+| MPFM [1]        | -                | 48.5s            | 0               | 11            |
+| MPFM Aggressive*| -                | 26.7s            | 6               | 4             |
+| U. Sampling [2] | 2.8              | 31.9s            | 0               | 0             |
+| Our Planner     | 2.5              | 25.0s            | 0               | 0             |
 
 - Tabel II Simulation Test Results in Map (B) 
 
-| Algorithm       | Avg. Flight Time | Collision Times | Trapped Times |
+| Algorithm       | Avg.Sample Times | Avg. Flight Time | Collision Times | Trapped Times |
 |-----------------|------------------|-----------------|---------------|
-| MPFM [1]        | 72.9s            | 0               | 0             |
-| MPFM Aggressive*| 35.8s            | 14              | 0             |
-| U. Sampling [2] | 44.9s            | 5               | 2             |
-| Our Planner     | 42.7s            | 0               | 0             |
+| MPFM [1]        | -                | 72.9s            | 0               | 0             |
+| MPFM Aggressive*| -                | 35.8s            | 14              | 0             |
+| U. Sampling [2] | 12.7             | 44.9s            | 5               | 2             |
+| Our Planner     | 3.6              | 42.7s            | 0               | 0             |
 
 [1] T. T. Mac, C. Copot, A. Hernandez, and R. De Keyser, “Improved potential field method for unknown obstacle avoidance using uav in indoor environment,” in 2016 IEEE 14th International Symposium on Applied Machine Intelligence and Informatics (SAMI), 2016, pp. 345–350.
 
